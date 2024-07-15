@@ -113,17 +113,35 @@
 
     }
 
+    const copyToClipboard = (text) => {
+        const textArea = document.createElement('textarea')
+        textArea.style.position = 'fixed'
+        textArea.style.visibility = '-10000px'
+        textArea.value = text
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        if (!document.execCommand('copy')) {
+            console.warn('浏览器不支持 document.execCommand("copy")')
+            document.body.removeChild(textArea)
+            return false
+        } else {
+            console.log("复制成功")
+            document.body.removeChild(textArea)
+            return true
+        }
+    }
+
     function loadExportPanel() {
 
         document.getElementById("export-clipboard").onclick = () => {
             const textToCopy = JSON.stringify(resultPanos);
-            GM_setClipboard(textToCopy).then(() => {
+            if (copyToClipboard(textToCopy)) {
                 alert('JSON数据已复制到剪贴板!');
-            }).catch(err => {
-                console.error('复制失败: ', err);
-            });
+            } else {
+                console.error('复制失败')
+            }
         };
-
 
         document.getElementById("export-json").onclick = () => {
             const dataStr = JSON.stringify(resultPanos, null, 2);
@@ -420,7 +438,7 @@
                             })
                         });
                         if (marker) map.addOverlay(marker)
-                        totalPoints ++;
+                        totalPoints++;
                     }
 
                 }
@@ -428,7 +446,7 @@
             }
 
         }
-        document.getElementById("export-panel").children[0].innerText = `Export (${totalPoints} point${totalPoints > 1 ? "s": ""})`
+        document.getElementById("export-panel").children[0].innerText = `Export (${totalPoints} point${totalPoints > 1 ? "s" : ""})`
     }
 
     function genPoints(path) {
@@ -523,7 +541,7 @@
     }
 
     checkPano("09000300011604191447150481C")
-    
+
 
     async function getTiles(id) {
         const url = `https://mapsv1.bdimg.com/?qt=sdata&sid=${id}`;
