@@ -113,6 +113,11 @@
 
         document.getElementById("start").onclick = () =>{
             isStarted=true
+            if (Object.keys(selections).length === 0){
+                displayPopup('未选中任何区域！')
+                isStarted=false
+                return
+            }
             initSearch()
             document.getElementById("start").style.display = 'none'
             document.getElementById("pause").style.display = 'block'
@@ -287,7 +292,10 @@
             circleOptions: styleOptions,
             polylineOptions: styleOptions,
             markerOptions: {
-                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25))
+                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25),{
+                imageOffset: new BMap.Size(0, 0),
+                anchor: new BMap.Size(0, 12.5)
+                }),
             }
         });
 
@@ -330,8 +338,9 @@
                     } else {
                         svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
                         const marker = new BMap.Marker(new BMap.Point(isPano[0], isPano[1]), {
-                            icon: new BMap.Icon(pinUrl, new BMap.Size(23, 25), {
+                            icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
                                 imageOffset: new BMap.Size(0, 0),
+                                anchor: new BMap.Size(0, 12.5)
                             })
                         });
                         markers.push(marker)
@@ -447,61 +456,55 @@
     };
 
     async function initSearch() {
-        if (selections == {}) {
-            displayPopup('未选中任何区域！')
-            return
-        }
-        let totalPoints = 0;
-        for (const key in selections) {
-            const wrapper = document.getElementById(key)
-            if (wrapper) {
-                const polygon_label = wrapper.querySelector('span:nth-child(1)')
-                const polygon_name = polygon_label.innerText
-                const bounds = selections[key]
-                const input = wrapper.querySelector('input');
-                const needNum = parseInt(input.value ? input.value : 0);
-                const numberLabel = wrapper.querySelector('span:nth-child(2)')
-                var findNum = parseInt(numberLabel.innerText ? numberLabel.innerText : 0);
-                const aroundPoints = []
-                    while (findNum < needNum&&isStarted) {
-                        const aroundPoint = genPoints(bounds);
-                        const bd09mcPoint=convertLL2MC(aroundPoint.lat, aroundPoint.lng)
-                        const resultPano=await searchPano(bd09mcPoint[0],bd09mcPoint[1],15)
-                        if(!resultPano||!resultPano.id) continue
-                        
-                        const isChecked=await checkPano(resultPano.id)
-                        if (!isChecked) continue
-                        else{
-                            extractTag(polygon_name,resultPano,resultPanos.customCoordinates)
-                            findNum+=1
-                            numberLabel.innerText=findNum
-                            const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
-                                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
-                                    imageOffset: new BMap.Size(0, 0)
-                                })
-                            });
-                            if(marker) {
-                                map.addOverlay(marker)
-                                markers.push(marker)
-                                const svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
-                                marker.addEventListener("click",function(){
-                                    window.open(svLink, '_blank');})
+            for (const key in selections) {
+                const wrapper = document.getElementById(key)
+                if (wrapper) {
+                    const polygon_label = wrapper.querySelector('span:nth-child(1)')
+                    const polygon_name = polygon_label.innerText
+                    const bounds = selections[key]
+                    const input = wrapper.querySelector('input');
+                    const needNum = parseInt(input.value ? input.value : 0);
+                    const numberLabel = wrapper.querySelector('span:nth-child(2)')
+                    var findNum = parseInt(numberLabel.innerText ? numberLabel.innerText : 0);
+                    const aroundPoints = []
+                        while (findNum < needNum&&isStarted) {
+                            const aroundPoint = genPoints(bounds);
+                            const bd09mcPoint=convertLL2MC(aroundPoint.lat, aroundPoint.lng)
+                            const resultPano=await searchPano(bd09mcPoint[0],bd09mcPoint[1],15)
+                            if(!resultPano||!resultPano.id) continue
+                            
+                            const isChecked=await checkPano(resultPano.id)
+                            if (!isChecked) continue
+                            else{
+                                extractTag(polygon_name,resultPano,resultPanos.customCoordinates)
+                                findNum+=1
+                                numberLabel.innerText=findNum
+                                const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
+                                    icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                                        imageOffset: new BMap.Size(0, 0),
+                                        anchor: new BMap.Size(0, 12.5)
+                                    })
+                                });
+                                if(marker) {
+                                    map.addOverlay(marker)
+                                    markers.push(marker)
+                                    const svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
+                                    marker.addEventListener("click",function(){
+                                        window.open(svLink, '_blank');})
+                                }
                             }
                         }
-
-                    }
-
+                }
             }
-
-        }
-        if(isStarted){
-            isStarted=false
-            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
-            document.getElementById("pause").style.display = 'none'
-            document.getElementById("start").style.display = 'block'
-            displayPopup("生成完毕！")
+            if(isStarted){
+                isStarted=false
+                document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+                document.getElementById("pause").style.display = 'none'
+                document.getElementById("start").style.display = 'block'
+                displayPopup("生成完毕！")
         }
     }
+
 
     function genPoints(path) {
         if (path.length < 3) {
