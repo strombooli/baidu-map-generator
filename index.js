@@ -434,7 +434,8 @@
                         numberLabel.innerText = findNum
                         const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
                             icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
-                                imageOffset: new BMap.Size(0, 0)
+                                imageOffset: new BMap.Size(0, 0),
+                                anchor: new BMap.Size(0, 12.5)
                             })
                         });
                         if (marker) map.addOverlay(marker)
