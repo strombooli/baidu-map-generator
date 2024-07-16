@@ -112,8 +112,8 @@
         loadDrawingTool()
 
         document.getElementById("start").onclick = () =>{
-            initSearch()
             isStarted=true
+            initSearch()
             document.getElementById("start").style.display = 'none'
             document.getElementById("pause").style.display = 'block'
         }
@@ -126,6 +126,8 @@
 
         document.getElementById("erase").onclick = () =>{
             resultPanos.customCoordinates=[]
+            manualPick=[]
+            document.getElementById("export-panel").children[0].innerText = `输出生成结果`
         }
         document.getElementById("clear").onclick = () =>{
             for (var i = 0; i < markers.length; i++) {
@@ -147,7 +149,7 @@
         }
         document.getElementById("manual-export").onclick = () =>{
             resultPanos.customCoordinates.push(...manualPick)
-             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
             displayPopup("手选点已添加至输出！")}
         
         loadExportPanel()
@@ -220,7 +222,7 @@
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
-        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers}`;
+        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers+1}`;
         selectionLabel.style.color = color
         selectionLabel.style.marginLeft = '20px'
         selectionLabel.style.marginRight = '50px'
