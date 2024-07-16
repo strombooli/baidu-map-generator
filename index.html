@@ -1,5 +1,5 @@
 <html>
-
+<meta charset="utf-8">
 <head>
     <style>
         html,
@@ -105,12 +105,22 @@
         <div id="selection-container" style="margin-top: 5px;"></div>
     </div>
     <button id="start"
-        style="position: fixed; right: 20px; bottom: 15%; padding: 10px 20px; background-color: rgb(255, 148, 39); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">开始生成</button>
+        style="position: fixed; right: 20px; bottom: 15%; padding: 10px 20px; background-color: #16982b; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">开始生成</button>
+    <button id="pause" 
+        style="display: none; position: fixed; right: 20px; bottom: 15%; padding: 10px 20px; background-color: #E66A6A; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">暂停</button>
+     <button id="erase" 
+         style="position: fixed; right: 20px; bottom: 22%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">清除生成街景</button>
+    <button id="clear" 
+        style="position: fixed; right: 20px; bottom: 29%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">移除地图上所有标记</button>
+    <button id="remove" 
+        style="position: fixed; right: 20px; bottom: 36%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">移除地图上所有区域</button>
+    <button id="manual-export" 
+        style="position: fixed; right: 20px; bottom: 43%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">将手选点添加至输出</button>
     <div id="export-panel" class="panel" style="right: 20px; bottom: 2%; width: 220px; height: 80px;">
-        <h3 style="font-size: 24px; margin-top: 0px; margin-bottom: 20px;">Export</h3>
+        <h3 style="font-size: 22px; margin-top: 0px; margin-bottom: 20px;">输出生成结果</h3>
         <button id="export-clipboard"
-            style="color: rgb(255, 255, 255); width: 100px; font-size: 20px; margin-right: 20px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px;">Clipboard</button><button
-            id="export-json" style="color: rgb(255, 255, 255); width: 100px; font-size: 20px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px">JSON</button>
+            style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; margin-right: 20px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px;">剪贴板</button><button
+            id="export-json" style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px">JSON文件</button>
     </div>
     <script type="text/javascript" src="./index.js"></script>
 </body>
