@@ -73,7 +73,18 @@
             margin-top: 10px;
             margin-bottom: 10px
         }
-
+        .control-button {
+            position: absolute;
+            right: 20px;
+            padding: 10px 20px;
+            margin-bottom: 5px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 20px;
+            width: 240px;
+        }
         .popup {
             position: absolute;
             bottom: 10%;
@@ -101,28 +112,36 @@
     <div class="panel" style="top: 8%; left: 20px;">请绘制一个你要生成街景的多边形区域</div>
     <div id="panel-container">
         <h3>选中的区域</h3>
-        <hr style="border: none; height: 1px; background-color: rgb(255, 148, 39); width: 300px; margin: 10px auto;">
-        <div id="selection-container" style="margin-top: 5px;"></div>
+        <button id="select-all"
+             style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:15px; margin-left: 10px;  margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">全选</button>
+         <button id="deselect-all"
+             style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:15px; margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">反选</button>
+        <button id="import-geojson"
+             style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:15px; margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">导入</button>
+        <button id="export-geojson"
+             style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:15px; margin-right: 10px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">输出</button>
+        <hr style="border: none; height: 1px; background-color: rgb(255, 148, 39); width: 320px; margin: 10px auto;">
+        <div id="selection-container" style="margin-top: 20px;"></div>
     </div>
-    <button id="start"
-        style="position: fixed; right: 20px; bottom: 15%; padding: 10px 20px; background-color: #16982b; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">开始生成</button>
-    <button id="pause" 
-        style="display: none; position: fixed; right: 20px; bottom: 15%; padding: 10px 20px; background-color: #E66A6A; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">暂停</button>
-     <button id="erase" 
-         style="position: fixed; right: 20px; bottom: 22%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">清除生成街景</button>
-    <button id="clear" 
-        style="position: fixed; right: 20px; bottom: 29%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">移除地图上所有标记</button>
-    <button id="remove" 
-        style="position: fixed; right: 20px; bottom: 36%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">移除地图上所有区域</button>
-    <button id="manual-export" 
-        style="position: fixed; right: 20px; bottom: 43%; padding: 10px 20px; background-color: #FF9427; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 20px; width: 240px;">将手选点添加至输出</button>
+    <button id="start" class="control-button"
+        style="bottom: 15%; background-color: #16982b;">开始生成</button>
+    <button id="pause" class="control-button"
+        style="bottom: 15%; background-color: #E66A6A; display:none">暂停</button>
+    <button id="erase" class="control-button"
+        style="bottom: 22%; background-color: #FF9427;">清除生成街景</button>
+    <button id="clear" class="control-button" 
+        style="bottom: 29%; background-color: #FF9427;">移除地图上所有标记</button>
+    <button id="remove" class="control-button"
+        style="bottom: 36%; background-color: #FF9427;">移除地图上所有区域</button>
+    <button id="manual-export" class="control-button"
+        style="bottom: 43%; background-color: #FF9427;">将手选点添加至输出</button>
     <div id="export-panel" class="panel" style="right: 20px; bottom: 2%; width: 220px; height: 80px;">
         <h3 style="font-size: 20px; margin-top: 0px; margin-bottom: 20px;">输出生成结果</h3>
         <button id="export-clipboard"
-            style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; margin-right: 20px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px;">剪贴板</button><button
-            id="export-json" style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 4px">JSON文件</button>
+            style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; margin-right: 10px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">剪贴板</button>
+        <button id="export-json" 
+            style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px">JSON文件</button>
     </div>
     <script type="text/javascript" src="./index.js"></script>
 </body>
-
 </html>
