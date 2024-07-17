@@ -1,6 +1,8 @@
 (function () {
-    let map,drawingManager,popup,isStarted
+    let map,drawingManager,popup
+    let isStarted = false
     let selections = {}
+    let overlayStates = {};
     let overlays=[]
     let markers=[]
     let manualPick=[]
@@ -156,7 +158,76 @@
             resultPanos.customCoordinates.push(...manualPick)
             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
             displayPopup("手选点已添加至输出！")}
-        
+
+        document.getElementById("select-all").onclick = () => {
+            const container = document.getElementById('selection-container');
+            if (overlays.length === 0) {
+                return; 
+            } 
+            else{
+                overlays.forEach(function(overlay) {
+                    const currentOpacity=overlay.K.Eg
+                    if (currentOpacity!=0.5){
+                        const key=overlay.ov.Me
+                        const state = overlayStates[key];
+                        state.ischecked=true
+                        if(!selections[key]){
+                            selections[key]=overlay.getPath()
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor(color);
+                        overlay.setFillOpacity('0.5');
+                        state.currentWrapper = addInputElement(
+                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
+                            container,
+                            color,
+                            key
+                        );
+                    }
+                })
+            }
+        }
+
+        document.getElementById("deselect-all").onclick = () => {
+            const container = document.getElementById('selection-container');
+            if (overlays.length === 0) {
+                return; 
+            } 
+            else{
+                overlays.forEach(function(overlay) {
+                    const currentOpacity=overlay.K.Eg
+                    const key=overlay.ov.Me
+                    const state = overlayStates[key];
+                    if (currentOpacity!=0.1){
+                        state.currentWrapper = null;
+                        state.ischecked=false
+                        const wrapper=document.getElementById(key)
+                        container.removeChild(wrapper)
+                        if(selections[key]){
+                            delete selections[key]
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor('#fff');
+                        overlay.setFillOpacity('0.1');
+                    }
+                    else{
+                        state.ischecked=true
+                        if(!selections[key]){
+                            selections[key]=overlay.getPath()
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor(color);
+                        overlay.setFillOpacity('0.5');
+                        state.currentWrapper = addInputElement(
+                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
+                            container,
+                            color,
+                            key
+                        );
+                    }
+                })
+        }
+    }
         loadExportPanel()
 
     }
@@ -218,12 +289,12 @@
         }, 2000);
     }
 
-    function addInputElement(labelText, container, color, id) {
+    function addInputElement(labelText, container, color, key) {
         const existingWrappers = container.getElementsByTagName('div').length
 
         const wrapper = document.createElement('div');
         wrapper.style.marginBottom = '5px';
-        wrapper.id = id
+        wrapper.id = key
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
@@ -304,12 +375,11 @@
     }
 
     function getLayerBound() {
-        const overlayStates = {};
-
+        
         drawingManager.addEventListener('overlaycomplete', function (event) {
             const container = document.getElementById('selection-container');
             const overlay = event.overlay;
-            const key = overlay.id || Date.now();
+            const key = overlay.ov.Me
             overlays.push(overlay)
             
             if (!overlayStates[key]) {
@@ -336,7 +406,7 @@
                         manualPick.pop()
                         displayPopup( '这里没有街景覆盖！');
                     } else {
-                        svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
+                        const svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
                         const marker = new BMap.Marker(new BMap.Point(isPano[0], isPano[1]), {
                             icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
                                 imageOffset: new BMap.Size(0, 0),
@@ -358,10 +428,10 @@
                 const state = overlayStates[key];
                 bounds = overlay.getPath();
                 drawingManager.close();
-                overlay.addEventListener("click", function () {
+                overlay.addEventListener("click", function() {
                     if (!state.ischecked) {
-                        if (!selections[key]) {
-                            selections[key] = bounds
+                        if(!selections[key]){
+                            selections[key]=bounds
                         }
                         const color = getRandomColor();
                         overlay.setFillColor(color);
@@ -374,7 +444,7 @@
                         );
                         state.ischecked = true;
                     } else {
-                        if (selections[key]) {
+                        if(selections[key]){
                             delete selections[key]
                         }
                         if (state.currentWrapper) {
@@ -395,12 +465,13 @@
                 const polygon = new BMap.Polygon(points, {
                     strokeColor: "black",
                     fillColor: "#fff",
-                    fillOpacity: 0.2,
+                    fillOpacity: 0.1,
                     strokeWeight: 2
                 });
 
                 map.addOverlay(polygon);
                 overlay.remove()
+                overlays.pop()
                 overlays.push(polygon)
                 bounds = polygon.getPath();
 
