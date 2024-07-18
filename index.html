@@ -100,6 +100,7 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             display: none;
         }
+        .anchorBL{display:none;} 
     </style>
     <link rel="stylesheet" href="https://api.map.baidu.com/library/DrawingManager/1.4/src/DrawingManager_min.css">
 </head>
@@ -109,7 +110,7 @@
     <script src="https://api.map.baidu.com/api?v=3.0&ak=R1bFV8hyU1IrmXGOg6Jqx2Q7Yto87qDd"></script>
     <script type="text/javascript"
         src="https://api.map.baidu.com/library/DrawingManager/1.4/src/DrawingManager_min.js"></script>
-    <div class="panel" style="top: 8%; left: 20px;">请绘制一个你要生成街景的多边形区域</div>
+    <div class="panel" style="top: 8%; left: 20px;">请绘制或导入一个你要生成街景的区域</div>
     <div id="panel-container">
         <h3>选中的区域</h3>
         <button id="select-all"
@@ -142,6 +143,8 @@
         <button id="export-json" 
             style="color: rgb(255, 255, 255); width: 100px; font-size: 18px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px">JSON文件</button>
     </div>
+    <input type="file" id="geojsonFile" accept=".geojson" style="display: none; position:absolute; left:50%">
+
     <script type="text/javascript" src="./index.js"></script>
 </body>
 </html>
