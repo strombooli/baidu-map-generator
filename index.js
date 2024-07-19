@@ -254,7 +254,10 @@
         map = new BMap.Map("baidu-map", { enableCopyrightControl: false });
         const point = new BMap.Point(108.404, 33.915);
         map.centerAndZoom(point, 5);
-        map.addControl(new BMap.MapTypeControl());
+        var mapTypeControl = new BMap.MapTypeControl({
+            mapTypes: [BMAP_NORMAL_MAP, BMAP_SATELLITE_MAP, BMAP_HYBRID_MAP]
+        });
+        map.addControl(mapTypeControl);
         map.enableScrollWheelZoom(true);
         panoramaLayer = new BMap.PanoramaCoverageLayer();
         map.addTileLayer(panoramaLayer);
@@ -314,9 +317,8 @@
             }
             else {
                 overlays.forEach(function (overlay) {
-                    const currentOpacity = overlay.K.Eg
-                    if (currentOpacity != 0.5) {
-                        const key = overlay.ov.Me
+                    if (overlay.z.sg != 0.5) {
+                        const key=overlay.pv.Je
                         const state = overlayStates[key];
                         state.isChecked = true
                         if (!selections[key]) {
@@ -329,7 +331,8 @@
                             overlay instanceof BMap.Circle ? "圆形" : "多边形",
                             container,
                             color,
-                            key
+                            key,
+                            state.label
                         );
                     }
                 })
@@ -343,10 +346,9 @@
             }
             else {
                 overlays.forEach(function (overlay) {
-                    const currentOpacity = overlay.K.Eg
-                    const key = overlay.ov.Me
+                    const key=overlay.pv.Je
                     const state = overlayStates[key];
-                    if (currentOpacity != 0.1) {
+                    if (overlay.z.sg != 0.1) {
                         state.currentWrapper = null;
                         state.isChecked = false
                         const wrapper = document.getElementById(key)
@@ -370,7 +372,8 @@
                             overlay instanceof BMap.Circle ? "圆形" : "多边形",
                             container,
                             color,
-                            key
+                            key,
+                            state.label
                         );
                     }
                 })
@@ -422,24 +425,27 @@
             };
         }
 
+        document.getElementById("search-geojson").onclick = () =>{
+             searchBoundary()
+         }
 
         loadExportPanel()
         var customSvControl = new StreetViewControl();
         map.addControl(customSvControl);
     }
 
-    function StreetViewControl() {
+    function StreetViewControl() {    
 
-        this.defaultAnchor = BMAP_ANCHOR_TOP_RIGHT;
-        this.defaultOffset = new BMap.Size(113, 5);
+        this.defaultAnchor = BMAP_ANCHOR_TOP_RIGHT;    
+        this.defaultOffset = new BMap.Size(78, 5);    
     }
 
 
     StreetViewControl.prototype = new BMap.Control();
 
-    StreetViewControl.prototype.initialize = function (map) {
-        var div = document.createElement("div");
-        div.appendChild(document.createTextNode("街景"));
+    StreetViewControl.prototype.initialize = function(map) {    
+        var div = document.createElement("div");    
+        div.appendChild(document.createTextNode("街景")); 
         div.style.boxShadow = "rgba(0, 0, 0, 0.35) 2px 2px 3px";
         div.style.borderLeft = "1px solid rgb(139, 164, 220)";
         div.style.borderTop = "1px solid rgb(139, 164, 220)";
@@ -453,23 +459,27 @@
         div.style.color = "rgb(255, 255, 255)";
         div.style.cursor = "pointer";
         div.style.margin = "5px"
-
-        div.onclick = function (e) {
+        div.style.height='15px'
+        
+        div.onclick = function(e) { 
             if (panoramaLayer) {
-                map.removeTileLayer(panoramaLayer);
-                panoramaLayer = null
-                div.style.color = "#000000"
-                div.style.background = "rgb(255, 255, 255)"
-                div.style.font = "12px arial,sans-serif"
-            } else {
-                panoramaLayer = new BMap.PanoramaCoverageLayer();
-                map.addTileLayer(panoramaLayer);
-                div.style.font = "bold 12px / 1.3em Arial, sans-serif"
-                div.style.color = "rgb(255, 255, 255)"
-                div.style.background = "rgb(142, 168, 224)";
-            }
-        };
-        map.getContainer().appendChild(div);
+                    map.removeTileLayer(panoramaLayer);
+                    panoramaLayer=null
+                    div.style.color="#000000"
+                    div.style.background="rgb(255, 255, 255)"
+                    div.style.font="12px arial,sans-serif"
+                    div.style.lineHeight='13.5px'
+                } else {
+                    panoramaLayer = new BMap.PanoramaCoverageLayer();
+                    map.addTileLayer(panoramaLayer);
+                    div.style.font = "bold 12px / 1.3em Arial, sans-serif"
+                    div.style.color="rgb(255, 255, 255)"
+                    div.style.lineHeight='15px'
+                    
+                    div.style.background = "rgb(142, 168, 224)";
+                }
+        };    
+        map.getContainer().appendChild(div);   
         return div
     };
 
@@ -529,8 +539,41 @@
             popup.style.display = 'none';
         }, 2000);
     }
-
-    function addInputElement(labelText, container, color, key) {
+    
+    function searchBoundary() {
+        var bdary = new BMap.Boundary();
+        
+        var districtName = prompt('请输入一个行政区名称（例如：北京市海淀区）');
+        if (!districtName) {
+            displayPopup('输入的名称不能为空')
+            return; 
+        }
+    
+        bdary.get(districtName, function(rs) {
+            var count = rs.boundaries.length;
+            if (count === 0) {
+                displayPopup('未能获取当前输入的行政区边界');
+                return;
+            }
+    
+            const color = getRandomColor();
+            var pointArray = [];
+            for (var i = 0; i < count; i++) {
+                var ply = new BMap.Polygon(rs.boundaries[i], {
+                    strokeWeight: 2,
+                    strokeColor: color,
+                    fillOpacity: 0.1,
+                    fillColor: "#fff"
+                });
+                map.addOverlay(ply);
+                handleOverlay(ply,districtName)
+                pointArray = pointArray.concat(ply.getPath());
+            }
+            map.setViewport(pointArray);
+        });
+    }
+    
+    function addInputElement(shape, container, color, key,label) {
         const existingWrappers = container.getElementsByTagName('div').length
 
         const wrapper = document.createElement('div');
@@ -539,15 +582,15 @@
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
-        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers + 1}`;
+        selectionLabel.innerText = label ? label : `选中${shape}区域${existingWrappers + 1}` 
         selectionLabel.style.color = color
         selectionLabel.style.marginLeft = '20px'
         selectionLabel.style.marginRight = '50px'
 
         selectionLabel.addEventListener('click', () => {
-            const newText = prompt('修改选中区域的名称:', selectionLabel.innerText);
-            if (newText != null && newText != '') {
-                selectionLabel.innerText = newText;
+            const customName= prompt('修改选中区域的名称:', selectionLabel.innerText);
+            if (customName != null && customName != '') {
+                selectionLabel.innerText = customName;
             }
         });
 
@@ -623,19 +666,19 @@
         });
     }
 
-    function handleOverlay(overlay) {
+    function handleOverlay(overlay,label) {
         if (overlay instanceof BMap.Marker) {
             const coord = overlay.getPosition();
             handleMarkerOverlay(overlay, coord);
         }
         else {
             const container = document.getElementById('selection-container');
-            const key = overlay.ov.Me;
+            const key = overlay.pv.Je;
             const bounds = overlay.getPath();
 
             overlays.push(overlay);
 
-            overlayStates[key] = { isChecked: false, currentWrapper: null };
+            overlayStates[key] = { isChecked: false, currentWrapper: null, "label":label};
 
 
             if (overlay instanceof BMap.Circle || overlay instanceof BMap.Polygon) {
@@ -730,7 +773,8 @@
                 overlay instanceof BMap.Circle ? "圆形" : "多边形",
                 container,
                 color,
-                key
+                key,
+                state.label
             );
             state.isChecked = true;
         } else {
@@ -748,10 +792,15 @@
     }
 
     function getRandomColor() {
-        const r = Math.floor(Math.random() * 128 + 127);
-        const g = Math.floor(Math.random() * 128 + 127);
-        const b = Math.floor(Math.random() * 128 + 127);
-
+        const minBrightness = 50;
+        const maxBrightness = 200;
+        const minSaturation = 50;
+        const maxSaturation = 100;
+    
+        const r = Math.floor(Math.random() * (maxBrightness - minBrightness + 1) + minBrightness);
+        const g = Math.floor(Math.random() * (maxBrightness - minBrightness + 1) + minBrightness);
+        const b = Math.floor(Math.random() * (maxBrightness - minBrightness + 1) + minBrightness);
+    
         return `rgb(${r}, ${g}, ${b})`;
     }
 
