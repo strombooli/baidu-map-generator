@@ -145,25 +145,27 @@
         return ret;
     }
      
-    function wgsToGcj(wgLat,wgLon){
-        var mars_point={lon:0,lat:0};
-        if (outOfChina(wgLat, wgLon))
-        {
+    
+    function wgsToGcj(wgLat, wgLon) {
+        var mars_point = { lon: 0, lat: 0 };
+    
+        if (outOfChina(wgLon, wgLat)) {
             mars_point.lat = wgLat;
             mars_point.lon = wgLon;
-            return;
+        } else {
+            var dLat = transformLat(wgLon - 105.0, wgLat - 35.0);
+            var dLon = transformLon(wgLon - 105.0, wgLat - 35.0);
+            var radLat = wgLat / 180.0 * pi;
+            var magic = Math.sin(radLat);
+            magic = 1 - ee * magic * magic;
+            var sqrtMagic = Math.sqrt(magic);
+            dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * pi);
+            dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * pi);
+            mars_point.lat = wgLat + dLat;
+            mars_point.lon = wgLon + dLon;
         }
-        var dLat = transformLat(wgLon - 105.0, wgLat - 35.0);
-        var dLon = transformLon(wgLon - 105.0, wgLat - 35.0);
-        var radLat = wgLat / 180.0 * pi;
-        var magic = Math.sin(radLat);
-        magic = 1 - ee * magic * magic;
-        var sqrtMagic = Math.sqrt(magic);
-        dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * pi);
-        dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * pi);
-        mars_point.lat = wgLat + dLat;
-        mars_point.lon = wgLon + dLon;
-        return mars_point
+    
+        return mars_point;
     }
 
     function gcjToWgs(gcjLat, gcjLon) {
@@ -207,60 +209,49 @@
         return ret
       }
     
-function processGeoJSON(geojson, coordinateSystem) {
-    let results = [];
-
-    const extractCoordinates = (coords) => {
-        return coords.flatMap(polygon =>
-            polygon.flatMap(subPolygon =>
-                subPolygon.map(coordinatePair => 
-                    [coordinatePair[0], coordinatePair[1]] 
-                )
-            )
-        );
-    };
-
-    if (geojson.features) {
-        geojson.features.forEach(feature => {
-            if (feature.geometry && feature.geometry.coordinates) {
-                const coordinates = extractCoordinates(feature.geometry.coordinates);
-                const marsCoordinates = coordinates.map(coord => {
-                    const [lat, lng] = coord;
-                    return coordinateSystem === '2' 
-                        ? gcjToBd(wgsToGcj(lat, lng)) 
-                        : gcjToBd({"lat":lat,"lon":lng});
+    function processGeoJSON(geojson, coordinateSystem) {
+        let results = [];
+    
+        const extractPolygons = (coordinates, coordinateSystem) => {
+            return coordinates.map(polygon => {
+                return polygon.map(linearRing => {
+                    return linearRing.map(coord => {
+                        const [lng, lat] = coord;
+                        if (coordinateSystem === '3') {
+                            return { lng, lat };
+                        } else if (coordinateSystem === '2') {
+                            return gcjToBd(wgsToGcj(lat, lng));
+                        } else {
+                            return gcjToBd({ "lat": lat, "lon": lng });
+                        }
+                    });
                 });
-                results.push(...marsCoordinates);
-            } else {
-                console.error('Invalid feature geometry.');
-                alert('Invalid feature geometry!');
-            }
-        });
-    } else if (geojson.coordinates) {
-        const coordinates = extractCoordinates(geojson.coordinates);
-        const marsCoordinates = coordinates.map(coord => {
-            const [lat, lng] = coord;
-            return coordinateSystem === '2' 
-                ? gcjToBd(wgsToGcj(lat, lng)) 
-                : gcjToBd({"lat":lat,"lon":lng});
-        });
-        results.push(...marsCoordinates);
-    } else if (geojson.geometry && geojson.geometry.coordinates) {
-        const coordinates = extractCoordinates(geojson.geometry.coordinates);
-        const marsCoordinates = coordinates.map(coord => {
-            const [lat, lng] = coord;
-            return coordinateSystem === '2' 
-                ? gcjToBd(wgsToGcj(lat, lng)) 
-                : gcjToBd({"lat":lat,"lon":lng});
-        });
-        results.push(...marsCoordinates);
-    } else {
-        console.error('Invalid GeoJSON format.');
-        alert('Invalid GeoJSON format!');
+            });
+        };
+    
+        if (geojson.features) {
+            geojson.features.forEach(feature => {
+                if (feature.geometry && feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+                    const polygons = extractPolygons(feature.geometry.coordinates);
+                    results.push(...polygons);
+                } else if (feature.geometry && feature.geometry.type === 'Polygon' && feature.geometry.coordinates) {
+                    const polygon = extractPolygons([feature.geometry.coordinates]);
+                    results.push(...polygon);
+                } else {
+                    displayPopup('Invalid feature geometry!');
+                }
+            });
+        } else if (geojson.type === 'MultiPolygon' && geojson.coordinates) {
+            const polygons = extractPolygons(geojson.coordinates);
+            results.push(...polygons);
+        } else if (geojson.type === 'Polygon' && geojson.coordinates) {
+            const polygon = extractPolygons([geojson.coordinates]);
+            results.push(...polygon);
+        } else {
+            displayPopup('Invalid GeoJSON format!');
+        }
+        return results;
     }
-
-    return results;
-}
 
     function initMap() {
         map = new BMap.Map("baidu-map",{enableCopyrightControl: false});
@@ -398,20 +389,36 @@ function processGeoJSON(geojson, coordinateSystem) {
                     const reader = new FileReader();
                     reader.onload = (event) => {
                         const geojsonData = JSON.parse(event.target.result);
-                        var coordinateSystem='1'
-                        coordinateSystem = prompt(`请选择坐标系:\n 1：火星坐标GCJ-02（国内默认） 2：WGS-84（国际通用）`);
-                        const boundaryPath = processGeoJSON(geojsonData, coordinateSystem);
-                        const points=[]
-                        boundaryPath.forEach(coord => {
-                            points.push(new BMap.Point(coord.lat, coord.lng))
+                        var coordinateSystem = prompt(`请选择坐标系:\n1：火星坐标GCJ-02（国内默认）\n2：WGS-84（国际通用）\n3：百度坐标BD-09（百度默认）`);
+                        if (!['1','2','3'].includes(coordinateSystem)) {
+                            displayPopup('请选择一个坐标系，默认为WGS-84')
+                            coordinateSystem='2'
+                        }
+                        const boundaryPaths = processGeoJSON(geojsonData, coordinateSystem);
+                        const paths = [];
+                        boundaryPaths.forEach(bd => {
+                            if (bd.length>0){
+                            const path = [];
+                            bd[0].forEach(coord => {
+                                path.push(new BMap.Point(coord.lng, coord.lat));
+                            });
+                            paths.push(path);
+                            }
                         });
-                        const polygon = new BMap.Polygon(points, { strokeColor: "#ff0000", strokeWeight: 2, fillOpacity: "0.1",fillColor:"#fff" });
-                        map.addOverlay(polygon);
-                        handleOverlay(polygon) 
-                        fileInput.files=null
+                        paths.forEach(path => {
+                            const polygon = new BMap.Polygon(path, {
+                                strokeColor: "#ff0000",
+                                strokeWeight: 2,
+                                fillOpacity: "0.1",
+                                fillColor: "#fff"
+                            });
+                            map.addOverlay(polygon);
+                            handleOverlay(polygon);
+                        });
                     };
                     reader.readAsText(file);
                 } else {
+                    fileInput.value = null;
                     displayPopup('请上传一个 GeoJSON 文件。');
                 }
             };
@@ -426,7 +433,7 @@ function processGeoJSON(geojson, coordinateSystem) {
     function StreetViewControl() {    
 
         this.defaultAnchor = BMAP_ANCHOR_TOP_RIGHT;    
-        this.defaultOffset = new BMap.Size(115, 5);    
+        this.defaultOffset = new BMap.Size(113, 5);    
     }    
     
 
