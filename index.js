@@ -1,9 +1,11 @@
 (function () {
-    let map,drawingManager,popup,isStarted
+    let map, drawingManager, panoramaLayer, popup
+    let isStarted = false
     let selections = {}
-    let overlays=[]
-    let markers=[]
-    let manualPick=[]
+    let overlayStates = {};
+    let overlays = []
+    let markers = []
+    let manualPick = []
     let resultPanos = { "customCoordinates": [] }
     let pinSvg = `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><title>70 Basic icons by Xicons.co</title><path d="M24,1.32c-9.92,0-18,7.8-18,17.38A16.83,16.83,0,0,0,9.57,29.09l12.84,16.8a2,2,0,0,0,3.18,0l12.84-16.8A16.84,16.84,0,0,0,42,18.7C42,9.12,33.92,1.32,24,1.32Z" fill="#ff9427"></path><path d="M25.37,12.13a7,7,0,1,0,5.5,5.5A7,7,0,0,0,25.37,12.13Z" fill="#ffffff"></path></g></svg>`
     const pinUrl = svgToUrl(pinSvg)
@@ -101,38 +103,192 @@
         return T;
     }
 
+    var x_pi = 3.14159265358979324 * 3000.0 / 180.0;
+    function gcjToBd(mars_point) {
+        var baidu_point = { lng: 0, lat: 0 };
+        var x = mars_point.lon;
+        var y = mars_point.lat;
+        var z = Math.sqrt(x * x + y * y) + 0.00002 * Math.sin(y * x_pi);
+        var theta = Math.atan2(y, x) + 0.000003 * Math.cos(x * x_pi);
+        baidu_point.lng = z * Math.cos(theta) + 0.0065;
+        baidu_point.lat = z * Math.sin(theta) + 0.006;
+        return baidu_point;
+    }
+
+    var pi = 3.14159265358979324;
+    var a = 6378245.0;
+    var ee = 0.00669342162296594323;
+
+    function outOfChina(lon, lat) {
+        if ((lon < 72.004 || lon > 137.8347) && (lat < 0.8293 || lat > 55.8271)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    function transformLat(x, y) {
+        var ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * pi) + 20.0 * Math.sin(2.0 * x * pi)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(y * pi) + 40.0 * Math.sin(y / 3.0 * pi)) * 2.0 / 3.0;
+        ret += (160.0 * Math.sin(y / 12.0 * pi) + 320 * Math.sin(y * pi / 30.0)) * 2.0 / 3.0;
+        return ret;
+    }
+
+    function transformLon(x, y) {
+        var ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * pi) + 20.0 * Math.sin(2.0 * x * pi)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(x * pi) + 40.0 * Math.sin(x / 3.0 * pi)) * 2.0 / 3.0;
+        ret += (150.0 * Math.sin(x / 12.0 * pi) + 300.0 * Math.sin(x / 30.0 * pi)) * 2.0 / 3.0;
+        return ret;
+    }
+
+
+    function wgsToGcj(wgLat, wgLon) {
+        var mars_point = { lon: 0, lat: 0 };
+
+        if (outOfChina(wgLon, wgLat)) {
+            mars_point.lat = wgLat;
+            mars_point.lon = wgLon;
+        } else {
+            var dLat = transformLat(wgLon - 105.0, wgLat - 35.0);
+            var dLon = transformLon(wgLon - 105.0, wgLat - 35.0);
+            var radLat = wgLat / 180.0 * pi;
+            var magic = Math.sin(radLat);
+            magic = 1 - ee * magic * magic;
+            var sqrtMagic = Math.sqrt(magic);
+            dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * pi);
+            dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * pi);
+            mars_point.lat = wgLat + dLat;
+            mars_point.lon = wgLon + dLon;
+        }
+
+        return mars_point;
+    }
+
+    function gcjToWgs(gcjLat, gcjLon) {
+        let d = delta(gcjLat, gcjLon)
+        return {
+            'lat': gcjLat - d.lat,
+            'lon': gcjLon - d.lon
+        }
+    }
+
+    function delta(lat, lon) {
+        let a = 6378245.0
+        let ee = 0.00669342162296594323
+        let dLat = transformLat(lon - 105.0, lat - 35.0)
+        let dLon = transformLon(lon - 105.0, lat - 35.0)
+        let radLat = lat / 180.0 * pi
+        let magic = Math.sin(radLat)
+        magic = 1 - ee * magic * magic
+        let sqrtMagic = Math.sqrt(magic)
+        dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * pi)
+        dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * pi)
+        return {
+            'lat': dLat,
+            'lon': dLon
+        }
+    }
+
+    function transformLat(x, y) {
+        let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x))
+        ret += (20.0 * Math.sin(6.0 * x * pi) + 20.0 * Math.sin(2.0 * x * pi)) * 2.0 / 3.0
+        ret += (20.0 * Math.sin(y * pi) + 40.0 * Math.sin(y / 3.0 * pi)) * 2.0 / 3.0
+        ret += (160.0 * Math.sin(y / 12.0 * pi) + 320 * Math.sin(y * pi / 30.0)) * 2.0 / 3.0
+        return ret
+    }
+
+    function transformLon(x, y) {
+        let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x))
+        ret += (20.0 * Math.sin(6.0 * x * pi) + 20.0 * Math.sin(2.0 * x * pi)) * 2.0 / 3.0
+        ret += (20.0 * Math.sin(x * pi) + 40.0 * Math.sin(x / 3.0 * pi)) * 2.0 / 3.0
+        ret += (150.0 * Math.sin(x / 12.0 * pi) + 300.0 * Math.sin(x / 30.0 * pi)) * 2.0 / 3.0
+        return ret
+    }
+
+    function processGeoJSON(geojson, coordinateSystem) {
+        let results = [];
+
+        const extractPolygons = (coordinates, coordinateSystem) => {
+            return coordinates.map(polygon => {
+                return polygon.map(linearRing => {
+                    return linearRing.map(coord => {
+                        const [lng, lat] = coord;
+                        if (coordinateSystem === '3') {
+                            return { lng, lat };
+                        } else if (coordinateSystem === '2') {
+                            return gcjToBd(wgsToGcj(lat, lng));
+                        } else {
+                            return gcjToBd({ "lat": lat, "lon": lng });
+                        }
+                    });
+                });
+            });
+        };
+
+        if (geojson.features) {
+            geojson.features.forEach(feature => {
+                if (feature.geometry && feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+                    const polygons = extractPolygons(feature.geometry.coordinates);
+                    results.push(...polygons);
+                } else if (feature.geometry && feature.geometry.type === 'Polygon' && feature.geometry.coordinates) {
+                    const polygon = extractPolygons([feature.geometry.coordinates]);
+                    results.push(...polygon);
+                } else {
+                    displayPopup('Invalid feature geometry!');
+                }
+            });
+        } else if (geojson.type === 'MultiPolygon' && geojson.coordinates) {
+            const polygons = extractPolygons(geojson.coordinates);
+            results.push(...polygons);
+        } else if (geojson.type === 'Polygon' && geojson.coordinates) {
+            const polygon = extractPolygons([geojson.coordinates]);
+            results.push(...polygon);
+        } else {
+            displayPopup('Invalid GeoJSON format!');
+        }
+        return results;
+    }
+
     function initMap() {
-        map = new BMap.Map("baidu-map");
+        map = new BMap.Map("baidu-map", { enableCopyrightControl: false });
         const point = new BMap.Point(108.404, 33.915);
         map.centerAndZoom(point, 5);
         map.addControl(new BMap.MapTypeControl());
         map.enableScrollWheelZoom(true);
-        map.addTileLayer(new BMap.PanoramaCoverageLayer());
-
+        panoramaLayer = new BMap.PanoramaCoverageLayer();
+        map.addTileLayer(panoramaLayer);
         loadDrawingTool()
 
-        document.getElementById("start").onclick = () =>{
+        document.getElementById("start").onclick = () => {
+            isStarted = true
+            if (Object.keys(selections).length === 0) {
+                displayPopup('未选中任何区域！')
+                isStarted = false
+                return
+            }
             initSearch()
-            isStarted=true
             document.getElementById("start").style.display = 'none'
             document.getElementById("pause").style.display = 'block'
         }
 
-        document.getElementById("pause").onclick = () =>{
-            isStarted=false
+        document.getElementById("pause").onclick = () => {
+            isStarted = false
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
         }
 
-        document.getElementById("erase").onclick = () =>{
-            resultPanos.customCoordinates=[]
+        document.getElementById("erase").onclick = () => {
+            resultPanos.customCoordinates = []
+            manualPick = []
+            document.getElementById("export-panel").children[0].innerText = `输出生成结果`
         }
-        document.getElementById("clear").onclick = () =>{
+        document.getElementById("clear").onclick = () => {
             for (var i = 0; i < markers.length; i++) {
                 map.removeOverlay(markers[i]);
             }
         }
-        document.getElementById("remove").onclick = () =>{
+        document.getElementById("remove").onclick = () => {
             for (var i = 0; i < overlays.length; i++) {
                 map.removeOverlay(overlays[i]);
             }
@@ -145,14 +301,177 @@
                 wrapper.remove();
             });
         }
-        document.getElementById("manual-export").onclick = () =>{
+        document.getElementById("manual-export").onclick = () => {
             resultPanos.customCoordinates.push(...manualPick)
-             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
-            displayPopup("手选点已添加至输出！")}
-        
-        loadExportPanel()
+            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+            displayPopup("手选点已添加至输出！")
+        }
 
+        document.getElementById("select-all").onclick = () => {
+            const container = document.getElementById('selection-container');
+            if (overlays.length === 0) {
+                return;
+            }
+            else {
+                overlays.forEach(function (overlay) {
+                    const currentOpacity = overlay.K.Eg
+                    if (currentOpacity != 0.5) {
+                        const key = overlay.ov.Me
+                        const state = overlayStates[key];
+                        state.isChecked = true
+                        if (!selections[key]) {
+                            selections[key] = overlay.getPath()
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor(color);
+                        overlay.setFillOpacity('0.5');
+                        state.currentWrapper = addInputElement(
+                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
+                            container,
+                            color,
+                            key
+                        );
+                    }
+                })
+            }
+        }
+
+        document.getElementById("deselect-all").onclick = () => {
+            const container = document.getElementById('selection-container');
+            if (overlays.length === 0) {
+                return;
+            }
+            else {
+                overlays.forEach(function (overlay) {
+                    const currentOpacity = overlay.K.Eg
+                    const key = overlay.ov.Me
+                    const state = overlayStates[key];
+                    if (currentOpacity != 0.1) {
+                        state.currentWrapper = null;
+                        state.isChecked = false
+                        const wrapper = document.getElementById(key)
+                        container.removeChild(wrapper)
+                        if (selections[key]) {
+                            delete selections[key]
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor('#fff');
+                        overlay.setFillOpacity('0.1');
+                    }
+                    else {
+                        state.isChecked = true
+                        if (!selections[key]) {
+                            selections[key] = overlay.getPath()
+                        }
+                        const color = getRandomColor();
+                        overlay.setFillColor(color);
+                        overlay.setFillOpacity('0.5');
+                        state.currentWrapper = addInputElement(
+                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
+                            container,
+                            color,
+                            key
+                        );
+                    }
+                })
+            }
+        }
+
+        document.getElementById("import-geojson").onclick = () => {
+            const fileInput = document.getElementById('geojsonFile');
+            fileInput.click();
+
+            fileInput.onchange = () => {
+                const file = fileInput.files[0]
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const geojsonData = JSON.parse(event.target.result);
+                        var coordinateSystem = prompt(`请选择坐标系:\n1：火星坐标GCJ-02（国内默认）\n2：WGS-84（国际通用）\n3：百度坐标BD-09（百度默认）`);
+                        if (!['1', '2', '3'].includes(coordinateSystem)) {
+                            displayPopup('请选择一个坐标系，默认为WGS-84')
+                            coordinateSystem = '2'
+                        }
+                        const boundaryPaths = processGeoJSON(geojsonData, coordinateSystem);
+                        const paths = [];
+                        boundaryPaths.forEach(bd => {
+                            if (bd.length > 0) {
+                                const path = [];
+                                bd[0].forEach(coord => {
+                                    path.push(new BMap.Point(coord.lng, coord.lat));
+                                });
+                                paths.push(path);
+                            }
+                        });
+                        paths.forEach(path => {
+                            const polygon = new BMap.Polygon(path, {
+                                strokeColor: "#ff0000",
+                                strokeWeight: 2,
+                                fillOpacity: "0.1",
+                                fillColor: "#fff"
+                            });
+                            map.addOverlay(polygon);
+                            handleOverlay(polygon);
+                        });
+                    };
+                    reader.readAsText(file);
+                } else {
+                    fileInput.value = null;
+                    displayPopup('请上传一个 GeoJSON 文件。');
+                }
+            };
+        }
+
+
+        loadExportPanel()
+        var customSvControl = new StreetViewControl();
+        map.addControl(customSvControl);
     }
+
+    function StreetViewControl() {
+
+        this.defaultAnchor = BMAP_ANCHOR_TOP_RIGHT;
+        this.defaultOffset = new BMap.Size(113, 5);
+    }
+
+
+    StreetViewControl.prototype = new BMap.Control();
+
+    StreetViewControl.prototype.initialize = function (map) {
+        var div = document.createElement("div");
+        div.appendChild(document.createTextNode("街景"));
+        div.style.boxShadow = "rgba(0, 0, 0, 0.35) 2px 2px 3px";
+        div.style.borderLeft = "1px solid rgb(139, 164, 220)";
+        div.style.borderTop = "1px solid rgb(139, 164, 220)";
+        div.style.borderBottom = "1px solid rgb(139, 164, 220)";
+        div.style.background = "rgb(142, 168, 224)";
+        div.style.padding = "2px 6px";
+        div.style.font = "bold 12px / 1.3em Arial, sans-serif";
+        div.style.textAlign = "center";
+        div.style.whiteSpace = "nowrap";
+        div.style.borderRadius = "3px 0px 0px 3px";
+        div.style.color = "rgb(255, 255, 255)";
+        div.style.cursor = "pointer";
+        div.style.margin = "5px"
+
+        div.onclick = function (e) {
+            if (panoramaLayer) {
+                map.removeTileLayer(panoramaLayer);
+                panoramaLayer = null
+                div.style.color = "#000000"
+                div.style.background = "rgb(255, 255, 255)"
+                div.style.font = "12px arial,sans-serif"
+            } else {
+                panoramaLayer = new BMap.PanoramaCoverageLayer();
+                map.addTileLayer(panoramaLayer);
+                div.style.font = "bold 12px / 1.3em Arial, sans-serif"
+                div.style.color = "rgb(255, 255, 255)"
+                div.style.background = "rgb(142, 168, 224)";
+            }
+        };
+        map.getContainer().appendChild(div);
+        return div
+    };
 
     const copyToClipboard = (text) => {
         const textArea = document.createElement('textarea')
@@ -199,28 +518,28 @@
     }
 
     function displayPopup(text) {
-        if (!popup){
+        if (!popup) {
             popup = document.createElement('div');
-            popup.className='popup'
+            popup.className = 'popup'
             document.body.appendChild(popup);
         }
-            popup.innerHTML = text
+        popup.innerHTML = text
         popup.style.display = 'block';
         setTimeout(() => {
             popup.style.display = 'none';
         }, 2000);
     }
 
-    function addInputElement(labelText, container, color, id) {
+    function addInputElement(labelText, container, color, key) {
         const existingWrappers = container.getElementsByTagName('div').length
 
         const wrapper = document.createElement('div');
         wrapper.style.marginBottom = '5px';
-        wrapper.id = id
+        wrapper.id = key
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
-        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers}`;
+        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers + 1}`;
         selectionLabel.style.color = color
         selectionLabel.style.marginLeft = '20px'
         selectionLabel.style.marginRight = '50px'
@@ -285,7 +604,10 @@
             circleOptions: styleOptions,
             polylineOptions: styleOptions,
             markerOptions: {
-                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25))
+                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                    imageOffset: new BMap.Size(0, 0),
+                    anchor: new BMap.Size(0, 12.5)
+                }),
             }
         });
 
@@ -294,129 +616,135 @@
     }
 
     function getLayerBound() {
-        const overlayStates = {};
-
         drawingManager.addEventListener('overlaycomplete', function (event) {
-            const container = document.getElementById('selection-container');
+
             const overlay = event.overlay;
-            const key = overlay.id || Date.now();
-            overlays.push(overlay)
-            
-            if (!overlayStates[key]) {
-                overlayStates[key] = { ischecked: false, currentWrapper: null };
-            }
-
-            let bounds;
-            if (overlay instanceof BMap.Marker) {
-                bounds = overlay.getPosition();
-                const pin_bd09mc = convertLL2MC(bounds.lat, bounds.lng);
-                searchPano(pin_bd09mc[0], pin_bd09mc[1], 16)
-                    .then(resultPano => {
-                    if (!resultPano) {
-                        overlay.remove();
-                        displayPopup( '这里没有街景覆盖！');
-                    } else {
-                        extractTag('手选点',resultPano,manualPick)
-                        return checkPano(resultPano.id);
-                    }
-                })
-                     .then(isPano => {
-                    overlay.remove();
-                    if (!isPano) {
-                        manualPick.pop()
-                        displayPopup( '这里没有街景覆盖！');
-                    } else {
-                        svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
-                        const marker = new BMap.Marker(new BMap.Point(isPano[0], isPano[1]), {
-                            icon: new BMap.Icon(pinUrl, new BMap.Size(23, 25), {
-                                imageOffset: new BMap.Size(0, 0),
-                            })
-                        });
-                        markers.push(marker)
-                        marker.addEventListener("click",function(){
-                            window.open(svLink, '_blank');})
-                        if (marker) map.addOverlay(marker);
-
-                    }
-                })
-                    .catch(error => {
-                        console.error('发生错误:', error);
-                    });
-            }
-            else if (overlay instanceof BMap.Circle || overlay instanceof BMap.Polygon) {
-                const state = overlayStates[key];
-                bounds = overlay.getPath();
-                drawingManager.close();
-                overlay.addEventListener("click", function () {
-                    if (!state.ischecked) {
-                        if (!selections[key]) {
-                            selections[key] = bounds
-                        }
-                        const color = getRandomColor();
-                        overlay.setFillColor(color);
-                        overlay.setFillOpacity(0.5);
-                        state.currentWrapper = addInputElement(
-                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
-                            container,
-                            color,
-                            key
-                        );
-                        state.ischecked = true;
-                    } else {
-                        if (selections[key]) {
-                            delete selections[key]
-                        }
-                        if (state.currentWrapper) {
-                            container.removeChild(state.currentWrapper);
-                            state.currentWrapper = null;
-                            overlay.setFillColor("#fff");
-                            overlay.setFillOpacity(0.1);
-                        }
-                        state.ischecked = false;
-                    }
-                });
-            }
-            else if (overlay instanceof BMap.Polyline) {
-                const state = overlayStates[key];
-
-                drawingManager.close();
-                const points = overlay.getPath();
-                const polygon = new BMap.Polygon(points, {
-                    strokeColor: "black",
-                    fillColor: "#fff",
-                    fillOpacity: 0.2,
-                    strokeWeight: 2
-                });
-
-                map.addOverlay(polygon);
-                overlay.remove()
-                overlays.push(polygon)
-                bounds = polygon.getPath();
-
-                polygon.addEventListener("click", function () {
-                    if (!state.ischecked) {
-                        if (!selections[key]) {
-                            selections[key] = bounds
-                        }
-                        const color = getRandomColor();
-                        polygon.setFillColor(color);
-                        state.currentWrapper = addInputElement("多边形", container, color, key);
-                        state.ischecked = true;
-                    } else {
-                        if (selections[key]) {
-                            delete selections[key]
-                        }
-                        if (state.currentWrapper) {
-                            container.removeChild(state.currentWrapper);
-                            state.currentWrapper = null;
-                            polygon.setFillColor("#fff");
-                            polygon.setFillOpacity(0.2);
-                        }
-                        state.ischecked = false;
-                    }
-                });
-            }
+            handleOverlay(overlay)
         });
+    }
+
+    function handleOverlay(overlay) {
+        if (overlay instanceof BMap.Marker) {
+            const coord = overlay.getPosition();
+            handleMarkerOverlay(overlay, coord);
+        }
+        else {
+            const container = document.getElementById('selection-container');
+            const key = overlay.ov.Me;
+            const bounds = overlay.getPath();
+
+            overlays.push(overlay);
+
+            overlayStates[key] = { isChecked: false, currentWrapper: null };
+
+
+            if (overlay instanceof BMap.Circle || overlay instanceof BMap.Polygon) {
+                handleShapeOverlay(overlay, bounds, key, container);
+            }
+
+            else if (overlay instanceof BMap.Polyline) {
+                handlePolylineOverlay(overlay, bounds, key, container);
+            }
+        }
+    }
+
+    function handleMarkerOverlay(marker, coord) {
+        const pin_bd09mc = convertLL2MC(coord.lat, coord.lng);
+
+        searchPano(pin_bd09mc[0], pin_bd09mc[1], 16)
+            .then(resultPano => {
+                if (!resultPano) {
+                    marker.remove();
+                    displayPopup('这里没有街景覆盖！');
+                    return null;
+                }
+                extractTag('手选点', resultPano, manualPick);
+                return checkPano(resultPano.id);
+            })
+            .then(isPano => {
+                marker.remove();
+                if (!isPano) {
+                    manualPick.pop();
+                    displayPopup('这里没有街景覆盖！');
+                } else {
+                    const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`;
+                    const newMarker = createMarker(isPano);
+                    newMarker.addEventListener("click", () => window.open(svLink, '_blank'));
+                    map.addOverlay(newMarker);
+                }
+            })
+            .catch(error => {
+                console.error('发生错误:', error);
+            });
+    }
+
+    function createMarker(coord) {
+        return new BMap.Marker(new BMap.Point(coord[0], coord[1]), {
+            icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                imageOffset: new BMap.Size(0, 0),
+                anchor: new BMap.Size(0, 12.5)
+            })
+        });
+    }
+
+    function handleShapeOverlay(overlay, bounds, key, container) {
+        const state = overlayStates[key];
+        drawingManager.close();
+
+        overlay.addEventListener("click", function () {
+            toggleShapeSelection(overlay, state, bounds, key, container);
+        });
+    }
+
+    function handlePolylineOverlay(overlay, bounds, key, container) {
+        const state = overlayStates[key];
+        drawingManager.close();
+
+        const points = overlay.getPath();
+        const polygon = new BMap.Polygon(points, {
+            strokeColor: "black",
+            fillColor: "#fff",
+            fillOpacity: 0.1,
+            strokeWeight: 2
+        });
+
+        map.addOverlay(polygon);
+        overlay.remove();
+        overlays.pop();
+        overlays.push(polygon);
+
+        polygon.addEventListener("click", function () {
+            toggleShapeSelection(polygon, state, bounds, key, container);
+        });
+    }
+
+    function toggleShapeSelection(overlay, state, bounds, key, container) {
+        if (!state.isChecked) {
+            if (!selections[key]) {
+                selections[key] = bounds;
+            }
+            const color = getRandomColor();
+            overlay.setFillColor(color);
+            overlay.setFillOpacity(0.5);
+            state.currentWrapper = addInputElement(
+                overlay instanceof BMap.Circle ? "圆形" : "多边形",
+                container,
+                color,
+                key
+            );
+            state.isChecked = true;
+        } else {
+            if (selections[key]) {
+                delete selections[key];
+            }
+            if (state.currentWrapper) {
+                container.removeChild(state.currentWrapper);
+                state.currentWrapper = null;
+                overlay.setFillColor("#fff");
+                overlay.setFillOpacity(0.1);
+            }
+            state.isChecked = false;
+        }
     }
 
     function getRandomColor() {
@@ -445,11 +773,6 @@
     };
 
     async function initSearch() {
-        if (selections == {}) {
-            displayPopup('未选中任何区域！')
-            return
-        }
-        let totalPoints = 0;
         for (const key in selections) {
             const wrapper = document.getElementById(key)
             if (wrapper) {
@@ -461,45 +784,45 @@
                 const numberLabel = wrapper.querySelector('span:nth-child(2)')
                 var findNum = parseInt(numberLabel.innerText ? numberLabel.innerText : 0);
                 const aroundPoints = []
-                    while (findNum < needNum&&isStarted) {
-                        const aroundPoint = genPoints(bounds);
-                        const bd09mcPoint=convertLL2MC(aroundPoint.lat, aroundPoint.lng)
-                        const resultPano=await searchPano(bd09mcPoint[0],bd09mcPoint[1],15)
-                        if(!resultPano||!resultPano.id) continue
-                        
-                        const isChecked=await checkPano(resultPano.id)
-                        if (!isChecked) continue
-                        else{
-                            extractTag(polygon_name,resultPano,resultPanos.customCoordinates)
-                            findNum+=1
-                            numberLabel.innerText=findNum
-                            const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
-                                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
-                                    imageOffset: new BMap.Size(0, 0)
-                                })
-                            });
-                            if(marker) {
-                                map.addOverlay(marker)
-                                markers.push(marker)
-                                const svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
-                                marker.addEventListener("click",function(){
-                                    window.open(svLink, '_blank');})
-                            }
+                while (findNum < needNum && isStarted) {
+                    const aroundPoint = genPoints(bounds);
+                    const bd09mcPoint = convertLL2MC(aroundPoint.lat, aroundPoint.lng)
+                    const resultPano = await searchPano(bd09mcPoint[0], bd09mcPoint[1], 15)
+                    if (!resultPano || !resultPano.id) continue
+
+                    const isChecked = await checkPano(resultPano.id)
+                    if (!isChecked) continue
+                    else {
+                        extractTag(polygon_name, resultPano, resultPanos.customCoordinates)
+                        findNum += 1
+                        numberLabel.innerText = findNum
+                        const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
+                            icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                                imageOffset: new BMap.Size(0, 0),
+                                anchor: new BMap.Size(0, 12.5)
+                            })
+                        });
+                        if (marker) {
+                            map.addOverlay(marker)
+                            markers.push(marker)
+                            const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
+                            marker.addEventListener("click", function () {
+                                window.open(svLink, '_blank');
+                            })
                         }
-
                     }
-
+                }
             }
-
         }
-        if(isStarted){
-            isStarted=false
+        if (isStarted) {
+            isStarted = false
             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
             displayPopup("生成完毕！")
         }
     }
+
 
     function genPoints(path) {
         if (path.length < 3) {
@@ -545,15 +868,15 @@
         return isInside;
     }
 
-    function extractTag(name,pano,pool){
-        var rN=pano.RoadName
-        if (rN==="")rN="EMPTYRDNAME"
-        const region_code=pano.id.substring(2,6)
-        const type1=pano.id.substring(6,10)
-        const type2=pano.id.substring(0,2)+"_"+pano.id.substring(25,27)
-        const year=parseInt(pano.id.substring(10,12)).toString()+'年'
-        const month=parseInt(pano.id.substring(12,14)).toString()+'月'
-        pool.push({panoId:pano.id,source: "baidu_pano",extra:{"tags":[name,region_code,rN,type1,type2,year,month]}})
+    function extractTag(name, pano, pool) {
+        var rN = pano.RoadName
+        if (rN === "") rN = "EMPTYRDNAME"
+        const region_code = pano.id.substring(2, 6)
+        const type1 = pano.id.substring(6, 10)
+        const type2 = pano.id.substring(0, 2) + "_" + pano.id.substring(25, 27)
+        const year = parseInt(pano.id.substring(10, 12)).toString() + '年'
+        const month = parseInt(pano.id.substring(12, 14)).toString() + '月'
+        pool.push({ panoId: pano.id, source: "baidu_pano", extra: { "tags": [name, region_code, rN, type1, type2, year, month] } })
     }
 
     async function searchPano(x, y, l) {
@@ -583,7 +906,7 @@
                 .then(data => {
                     try {
                         if (data.result.error !== 404) {
-                            resolve([...convertMC2LL(data.content[0].X / 100, data.content[0].Y / 100),data.content[0].Heading,id])
+                            resolve([...convertMC2LL(data.content[0].X / 100, data.content[0].Y / 100), data.content[0].Heading, id])
                         }
                         else {
                             resolve(false)
@@ -600,7 +923,7 @@
         });
     }
 
- 
+
     async function getTiles(id) {
         const url = `https://mapsv1.bdimg.com/?qt=sdata&sid=${id}`;
         try {
