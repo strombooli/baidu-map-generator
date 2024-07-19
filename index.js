@@ -1,9 +1,9 @@
 (function () {
-    let map,drawingManager,popup,isStarted
+    let map, drawingManager, popup, isStarted
     let selections = {}
-    let overlays=[]
-    let markers=[]
-    let manualPick=[]
+    let overlays = []
+    let markers = []
+    let manualPick = []
     let resultPanos = { "customCoordinates": [] }
     let pinSvg = `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><title>70 Basic icons by Xicons.co</title><path d="M24,1.32c-9.92,0-18,7.8-18,17.38A16.83,16.83,0,0,0,9.57,29.09l12.84,16.8a2,2,0,0,0,3.18,0l12.84-16.8A16.84,16.84,0,0,0,42,18.7C42,9.12,33.92,1.32,24,1.32Z" fill="#ff9427"></path><path d="M25.37,12.13a7,7,0,1,0,5.5,5.5A7,7,0,0,0,25.37,12.13Z" fill="#ffffff"></path></g></svg>`
     const pinUrl = svgToUrl(pinSvg)
@@ -111,28 +111,28 @@
 
         loadDrawingTool()
 
-        document.getElementById("start").onclick = () =>{
+        document.getElementById("start").onclick = () => {
+            isStarted = true
             initSearch()
-            isStarted=true
             document.getElementById("start").style.display = 'none'
             document.getElementById("pause").style.display = 'block'
         }
 
-        document.getElementById("pause").onclick = () =>{
-            isStarted=false
+        document.getElementById("pause").onclick = () => {
+            isStarted = false
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
         }
 
-        document.getElementById("erase").onclick = () =>{
-            resultPanos.customCoordinates=[]
+        document.getElementById("erase").onclick = () => {
+            resultPanos.customCoordinates = []
         }
-        document.getElementById("clear").onclick = () =>{
+        document.getElementById("clear").onclick = () => {
             for (var i = 0; i < markers.length; i++) {
                 map.removeOverlay(markers[i]);
             }
         }
-        document.getElementById("remove").onclick = () =>{
+        document.getElementById("remove").onclick = () => {
             for (var i = 0; i < overlays.length; i++) {
                 map.removeOverlay(overlays[i]);
             }
@@ -145,15 +145,17 @@
                 wrapper.remove();
             });
         }
-        document.getElementById("manual-export").onclick = () =>{
+        document.getElementById("manual-export").onclick = () => {
             resultPanos.customCoordinates.push(...manualPick)
-             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
-            displayPopup("手选点已添加至输出！")}
-        
+            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+            displayPopup("手选点已添加至输出！")
+        }
+
         loadExportPanel()
+        loadDefaultPolygons()
 
     }
-
+    
     const copyToClipboard = (text) => {
         const textArea = document.createElement('textarea')
         textArea.style.position = 'fixed'
@@ -197,21 +199,103 @@
             URL.revokeObjectURL(url);
         };
     }
+    function loadDefaultPolygons() {
+        
+        fetch('./provinces.json')
+            .then(response => response.json())
+            .then(data => {
+                data.features.forEach(function(feature){
+                    addPolygon(feature)
+                })
+            })
+            .catch(error => console.log(error));
+        
+        
+        function multiPolygon2BdPolygon(geojson) {
+            var baiduPolygons = [];
+            geojson.coordinates.forEach(function (coordinate) {
+                var polygonPoints = coordinate[0].map(function (point) {
+                    return new BMap.Point(point[0], point[1]);
+                });
+                baiduPolygons.push(new BMap.Polygon(polygonPoints, { strokeColor: "blue", strokeWeight: 2, strokeOpacity: 0.5, fillOpacity: 0.1 }));
+            });
+            return baiduPolygons;
+        }
 
+        function polygon2BdPolygon(geojson) {
+            var polygonPoints = geojson.coordinates[0].map(function (point) {
+                return new BMap.Point(point[0], point[1]);
+            });
+            return new BMap.Polygon(polygonPoints, { strokeColor: "blue", strokeWeight: 2, strokeOpacity: 0.5, fillOpacity: 0.1 });
+        }
+
+        function addPolygon(gj) {
+            if (gj.geometry.type == 'Polygon') {   
+                polygon = polygon2BdPolygon(gj.geometry)
+                registerPolygon(polygon, gj.properties.id, gj.properties.name)
+                map.addOverlay(polygon);
+            } else {
+                multiPolygon2BdPolygon(gj.geometry).forEach(function (polygon) {
+                    registerPolygon(polygon, gj.properties.id, gj.properties.name)
+                    map.addOverlay(polygon);
+                });
+            }
+        }
+
+        function registerPolygon(polygon, key, name) {
+            const overlayStates = {}
+
+            const container = document.getElementById('selection-container');
+            overlays.push(polygon)
+
+            if (!overlayStates[key]) {
+                overlayStates[key] = { ischecked: false, currentWrapper: null };
+            }
+
+            bounds = polygon.getPath();
+
+            const state = overlayStates[key];
+
+            polygon.addEventListener("click", function () {
+                
+                bounds = polygon.getPath();
+                if (!state.ischecked) {
+                    if (!selections[key]) {
+                        selections[key] = bounds
+                    }
+                    const color = getRandomColor();
+                    polygon.setFillColor(color);
+                    state.currentWrapper = addInputElement("多边形", container, color, key, name);
+                    state.ischecked = true;
+                } else {
+                    if (selections[key]) {
+                        delete selections[key]
+                    }
+                    if (state.currentWrapper) {
+                        container.removeChild(state.currentWrapper);
+                        state.currentWrapper = null;
+                        polygon.setFillColor("#fff");
+                        polygon.setFillOpacity(0.2);
+                    }
+                    state.ischecked = false;
+                }
+            });
+        }
+    }
     function displayPopup(text) {
-        if (!popup){
+        if (!popup) {
             popup = document.createElement('div');
-            popup.className='popup'
+            popup.className = 'popup'
             document.body.appendChild(popup);
         }
-            popup.innerHTML = text
+        popup.innerHTML = text
         popup.style.display = 'block';
         setTimeout(() => {
             popup.style.display = 'none';
         }, 2000);
     }
 
-    function addInputElement(labelText, container, color, id) {
+    function addInputElement(labelText, container, color, id, fixedText = '') {
         const existingWrappers = container.getElementsByTagName('div').length
 
         const wrapper = document.createElement('div');
@@ -220,7 +304,11 @@
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
-        selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers}`;
+        if (fixedText) {
+            selectionLabel.innerText = fixedText;
+        } else {
+            selectionLabel.innerText = '选中' + labelText + `区域${existingWrappers}`;
+        }
         selectionLabel.style.color = color
         selectionLabel.style.marginLeft = '20px'
         selectionLabel.style.marginRight = '50px'
@@ -301,7 +389,7 @@
             const overlay = event.overlay;
             const key = overlay.id || Date.now();
             overlays.push(overlay)
-            
+
             if (!overlayStates[key]) {
                 overlayStates[key] = { ischecked: false, currentWrapper: null };
             }
@@ -312,33 +400,34 @@
                 const pin_bd09mc = convertLL2MC(bounds.lat, bounds.lng);
                 searchPano(pin_bd09mc[0], pin_bd09mc[1], 16)
                     .then(resultPano => {
-                    if (!resultPano) {
+                        if (!resultPano) {
+                            overlay.remove();
+                            displayPopup('这里没有街景覆盖！');
+                        } else {
+                            extractTag('手选点', resultPano, manualPick)
+                            return checkPano(resultPano.id);
+                        }
+                    })
+                    .then(isPano => {
                         overlay.remove();
-                        displayPopup( '这里没有街景覆盖！');
-                    } else {
-                        extractTag('手选点',resultPano,manualPick)
-                        return checkPano(resultPano.id);
-                    }
-                })
-                     .then(isPano => {
-                    overlay.remove();
-                    if (!isPano) {
-                        manualPick.pop()
-                        displayPopup( '这里没有街景覆盖！');
-                    } else {
-                        svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
-                        const marker = new BMap.Marker(new BMap.Point(isPano[0], isPano[1]), {
-                            icon: new BMap.Icon(pinUrl, new BMap.Size(23, 25), {
-                                imageOffset: new BMap.Size(0, 0),
+                        if (!isPano) {
+                            manualPick.pop()
+                            displayPopup('这里没有街景覆盖！');
+                        } else {
+                            svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isPano[3]}&panotype=street&heading=${isPano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isPano[3]}`
+                            const marker = new BMap.Marker(new BMap.Point(isPano[0], isPano[1]), {
+                                icon: new BMap.Icon(pinUrl, new BMap.Size(23, 25), {
+                                    imageOffset: new BMap.Size(0, 0),
+                                })
+                            });
+                            markers.push(marker)
+                            marker.addEventListener("click", function () {
+                                window.open(svLink, '_blank');
                             })
-                        });
-                        markers.push(marker)
-                        marker.addEventListener("click",function(){
-                            window.open(svLink, '_blank');})
-                        if (marker) map.addOverlay(marker);
+                            if (marker) map.addOverlay(marker);
 
-                    }
-                })
+                        }
+                    })
                     .catch(error => {
                         console.error('发生错误:', error);
                     });
@@ -461,39 +550,40 @@
                 const numberLabel = wrapper.querySelector('span:nth-child(2)')
                 var findNum = parseInt(numberLabel.innerText ? numberLabel.innerText : 0);
                 const aroundPoints = []
-                    while (findNum < needNum&&isStarted) {
-                        const aroundPoint = genPoints(bounds);
-                        const bd09mcPoint=convertLL2MC(aroundPoint.lat, aroundPoint.lng)
-                        const resultPano=await searchPano(bd09mcPoint[0],bd09mcPoint[1],15)
-                        if(!resultPano||!resultPano.id) continue
-                        
-                        const isChecked=await checkPano(resultPano.id)
-                        if (!isChecked) continue
-                        else{
-                            extractTag(polygon_name,resultPano,resultPanos.customCoordinates)
-                            findNum+=1
-                            numberLabel.innerText=findNum
-                            const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
-                                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
-                                    imageOffset: new BMap.Size(0, 0)
-                                })
-                            });
-                            if(marker) {
-                                map.addOverlay(marker)
-                                markers.push(marker)
-                                const svLink=`https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
-                                marker.addEventListener("click",function(){
-                                    window.open(svLink, '_blank');})
-                            }
-                        }
+                while (findNum < needNum && isStarted) {
+                    const aroundPoint = genPoints(bounds);
+                    const bd09mcPoint = convertLL2MC(aroundPoint.lat, aroundPoint.lng)
+                    const resultPano = await searchPano(bd09mcPoint[0], bd09mcPoint[1], 15)
+                    if (!resultPano || !resultPano.id) continue
 
+                    const isChecked = await checkPano(resultPano.id)
+                    if (!isChecked) continue
+                    else {
+                        extractTag(polygon_name, resultPano, resultPanos.customCoordinates)
+                        findNum += 1
+                        numberLabel.innerText = findNum
+                        const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
+                            icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                                imageOffset: new BMap.Size(0, 0)
+                            })
+                        });
+                        if (marker) {
+                            map.addOverlay(marker)
+                            markers.push(marker)
+                            const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
+                            marker.addEventListener("click", function () {
+                                window.open(svLink, '_blank');
+                            })
+                        }
                     }
+
+                }
 
             }
 
         }
-        if(isStarted){
-            isStarted=false
+        if (isStarted) {
+            isStarted = false
             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
@@ -545,15 +635,15 @@
         return isInside;
     }
 
-    function extractTag(name,pano,pool){
-        var rN=pano.RoadName
-        if (rN==="")rN="EMPTYRDNAME"
-        const region_code=pano.id.substring(2,6)
-        const type1=pano.id.substring(6,10)
-        const type2=pano.id.substring(0,2)+"_"+pano.id.substring(25,27)
-        const year=parseInt(pano.id.substring(10,12)).toString()+'年'
-        const month=parseInt(pano.id.substring(12,14)).toString()+'月'
-        pool.push({panoId:pano.id,source: "baidu_pano",extra:{"tags":[name,region_code,rN,type1,type2,year,month]}})
+    function extractTag(name, pano, pool) {
+        var rN = pano.RoadName
+        if (rN === "") rN = "EMPTYRDNAME"
+        const region_code = pano.id.substring(2, 6)
+        const type1 = pano.id.substring(6, 10)
+        const type2 = pano.id.substring(0, 2) + "_" + pano.id.substring(25, 27)
+        const year = parseInt(pano.id.substring(10, 12)).toString() + '年'
+        const month = parseInt(pano.id.substring(12, 14)).toString() + '月'
+        pool.push({ panoId: pano.id, source: "baidu_pano", extra: { "tags": [name, region_code, rN, type1, type2, year, month] } })
     }
 
     async function searchPano(x, y, l) {
@@ -583,7 +673,7 @@
                 .then(data => {
                     try {
                         if (data.result.error !== 404) {
-                            resolve([...convertMC2LL(data.content[0].X / 100, data.content[0].Y / 100),data.content[0].Heading,id])
+                            resolve([...convertMC2LL(data.content[0].X / 100, data.content[0].Y / 100), data.content[0].Heading, id])
                         }
                         else {
                             resolve(false)
@@ -600,7 +690,7 @@
         });
     }
 
- 
+
     async function getTiles(id) {
         const url = `https://mapsv1.bdimg.com/?qt=sdata&sid=${id}`;
         try {
