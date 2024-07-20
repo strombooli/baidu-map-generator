@@ -328,7 +328,6 @@
                         overlay.setFillColor(color);
                         overlay.setFillOpacity('0.5');
                         state.currentWrapper = addInputElement(
-                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
                             color,
                             key,
                             state.label
@@ -368,7 +367,6 @@
                         overlay.setFillColor(color);
                         overlay.setFillOpacity('0.5');
                         state.currentWrapper = addInputElement(
-                            overlay instanceof BMap.Circle ? "圆形" : "多边形",
                             color,
                             key,
                             state.label
@@ -406,9 +404,9 @@
                         });
                         paths.forEach(path => {
                             const polygon = new BMap.Polygon(path, {
-                                strokeColor: "#ff0000",
+                                strokeColor: getRandomColor(),
                                 strokeWeight: 2.5,
-                                fillOpacity: "0.1",
+                                fillOpacity: 0.1,
                                 fillColor: "#fff"
                             });
                             map.addOverlay(polygon);
@@ -570,7 +568,7 @@
         });
     }
     
-    function addInputElement(shape, color, key,label) {
+    function addInputElement(color, key,label) {
         const container = document.getElementById('selection-container');
         const existingWrappers = container.getElementsByTagName('div').length
         const wrapper = document.createElement('div');
@@ -579,7 +577,7 @@
         wrapper.className = 'wrapper'
 
         const selectionLabel = document.createElement('span');
-        selectionLabel.innerText = label ? label : `选中${shape}区域${existingWrappers + 1}` 
+        selectionLabel.innerText = label ? label : `选中区域${existingWrappers + 1}` 
         selectionLabel.style.color = color
         selectionLabel.style.marginLeft = '20px'
         selectionLabel.style.marginRight = '50px'
@@ -629,19 +627,16 @@
             isOpen: false,
             enableDrawingTool: true,
             drawingToolOptions: {
+                scale:0.8,
                 anchor: BMAP_ANCHOR_TOP_LEFT,
-                offset: new BMap.Size(0, 0),
+                offset: new BMap.Size(40, 20),
                 drawingModes: [
                     BMAP_DRAWING_MARKER,
-                    BMAP_DRAWING_CIRCLE,
                     BMAP_DRAWING_POLYLINE,
-                    BMAP_DRAWING_POLYGON,
                     BMAP_DRAWING_RECTANGLE
                 ]
             },
-            polygonOptions: styleOptions,
             rectangleOptions: styleOptions,
-            circleOptions: styleOptions,
             polylineOptions: styleOptions,
             markerOptions: {
                 icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
@@ -677,7 +672,7 @@
             overlayStates[key] = { isChecked: false, currentWrapper: null, "label":label};
 
 
-            if (overlay instanceof BMap.Circle || overlay instanceof BMap.Polygon) {
+            if (overlay instanceof BMap.Polygon) {
                 handleShapeOverlay(overlay, bounds, key);
             }
 
@@ -766,7 +761,6 @@
             overlay.setFillColor(color);
             overlay.setFillOpacity(0.5);
             state.currentWrapper = addInputElement(
-                overlay instanceof BMap.Circle ? "圆形" : "多边形",
                 color,
                 key,
                 state.label
@@ -836,41 +830,74 @@
                 const aroundPoints = []
                 const grids=await dividePly(key)
                 while (findNum < needNum && isStarted) {
-                    for (let i = 0; i < grids.length; i++) {
-                        const grid = grids[i];
-                        const aroundPoint = genPoints(bounds);
-                        const bd09mcPoint = convertLL2MC(aroundPoint.lat, aroundPoint.lng)
-                        const resultPano = await searchPano(bd09mcPoint[0], bd09mcPoint[1], 16)
-                        if (!resultPano || !resultPano.id) continue
-    
-                        const isChecked = await checkPano(resultPano.id)
-                        if (!isChecked) continue
-                        else {
-                            extractTag(polygon_name, resultPano, resultPanos.customCoordinates)
-                            findNum += 1
-                            numberLabel.innerText = findNum
+                    const searchPromises = [];
+
+                    for (const grid of grids) {
+                        const randomPoints = genPoints(grid); // 生成随机点数组
+
+                        for (const randomPoint of randomPoints) {
+                            const bd09mcPoint = convertLL2MC(randomPoint.lat, randomPoint.lng);
+                            const searchPromise = searchPano(bd09mcPoint[0], bd09mcPoint[1], 16)
+                                .then(async (resultPano) => {
+                                    if (!resultPano || !resultPano.id) return null;
+                
+                                    const isChecked = await checkPano(resultPano.id);
+                                    if (!isChecked) return null;
+                
+                                    const checkPoint = new BMap.Point(isChecked[0], isChecked[1]);
+                                    const isIn = isInOverlay(checkPoint, getOverlayByKey(key));
+                                    if (!isIn) return null;
+                
+                                    return {
+                                        resultPano,
+                                        isChecked
+                                    };
+                                })
+                                .catch(err => {
+                                    console.error("Error in searchPano:", err);
+                                    return null;
+                                });
+                
+                            searchPromises.push(searchPromise);
+                        }
+                    }
+                
+                    const results = await Promise.all(searchPromises);
+                
+                    for (const result of results) {
+                        if (result) {
+                            const { resultPano, isChecked } = result;
+                
+                            extractTag(polygon_name, resultPano, resultPanos.customCoordinates);
+                            findNum += 1;
+                            numberLabel.innerText = findNum;
+                
                             const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
                                 icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
                                     imageOffset: new BMap.Size(0, 0),
                                     anchor: new BMap.Size(0, 12.5)
                                 })
                             });
+                
                             if (marker) {
-                                map.addOverlay(marker)
-                                markers.push(marker)
-                                const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`
+                                map.addOverlay(marker);
+                                markers.push(marker);
+                
+                                const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`;
                                 marker.addEventListener("click", function () {
                                     window.open(svLink, '_blank');
-                                })
+                                });
+                
+                                if (findNum >= needNum) {
+                                    break;
                                 }
-                            break;
                             }
                         }
                     }
                 }
+                }
             }
         
-
         if (isStarted) {
             isStarted = false
             document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
@@ -879,23 +906,25 @@
             displayPopup("生成完毕！")
         }
     }
-
-    async function dividePly(key) {
-        let overlay = null;
-        let l;
     
-        for (let i = 0; i < overlays.length; i++) {
+    function getOverlayByKey(key){
+        var overlay
+         for (let i = 0; i < overlays.length; i++) {
             if (overlays[i].pv && overlays[i].pv.Je === parseFloat(key)) {
                 overlay = overlays[i];
                 break;
             }
         }
-    
         if (!overlay) {
             throw new Error('Overlay with key ' + key + ' not found.');
-            return
         }
+        return overlay
+    } 
     
+    async function dividePly(key) {
+        let overlay = getOverlayByKey(key);
+        let l;
+
         const bounds = overlay.getBounds();
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
@@ -904,13 +933,13 @@
     
         let gridSize, numCols, numRows;
     
-        if (diagonalLength <= 8620) {
+        if (diagonalLength <= 7200) {
             gridSize = 860*2
             l = 14;
-        } else if (diagonalLength <= 51000) {
+        } else if (diagonalLength <= 40800) {
             gridSize = 5100*2
             l = 11;
-        } else if (diagonalLength <= 177000) {
+        } else if (diagonalLength <= 141600) {
             gridSize = 17700*2
             l = 9;
         }  else {
@@ -955,13 +984,18 @@
                if(!allInside) continue
     
                 try {
-    
                     const pano = await searchPano(convertLL2MC(gridCenter.lat, gridCenter.lng)[0],convertLL2MC(gridCenter.lat, gridCenter.lng)[1], l);
                     if (!pano || !pano.id) continue;
-    
                     const isChecked = await checkPano(pano.id);
                     if (!isChecked) continue;
-                    grids.push(gridPath);
+                    const grid = new BMap.Polygon(gridPath,{
+                                strokeColor: getRandomColor(),
+                                strokeWeight: 2.5,
+                                fillOpacity: 0.1,
+                                fillColor: "#fff"
+                            })
+                    map.addOverlay(grid)
+                    grids.push(grid);
                 } catch (error) {
                     console.error('Error processing grid:', error);
                 }
@@ -971,32 +1005,37 @@
         return grids;
     }
 
-    function genPoints(path) {
+    function genPoints(overlay, numPoints = 50) {
+        const path = overlay.getPath();
         if (path.length < 3) {
             throw new Error("Polygon must have at least 3 points.");
         }
-
+    
         const latitudes = path.map(point => point.lat);
         const longitudes = path.map(point => point.lng);
-
+    
         const minLat = Math.min(...latitudes);
         const maxLat = Math.max(...latitudes);
         const minLng = Math.min(...longitudes);
         const maxLng = Math.max(...longitudes);
-
-        let randomPoint;
-
-        do {
-            const g = maxLat;
-            const h = minLat;
-            const randomLat = Math.asin(
-                Math.random() * (Math.sin(g * Math.PI / 180) - Math.sin(h * Math.PI / 180)) + Math.sin(h * Math.PI / 180)
-            ) * 180 / Math.PI;
-            const randomLng = minLng + Math.random() * (maxLng - minLng);
-            randomPoint = { lng: randomLng, lat: randomLat };
-        } while (!isInPolygon(randomPoint, path));
-
-        return randomPoint;
+    
+        const randomPoints = [];
+    
+        for (let i = 0; i < numPoints; i++) {
+            let randomPoint;
+    
+            do {
+                const randomLat = Math.asin(
+                    Math.random() * (Math.sin(maxLat * Math.PI / 180) - Math.sin(minLat * Math.PI / 180)) + Math.sin(minLat * Math.PI / 180)
+                ) * 180 / Math.PI;
+                const randomLng = minLng + Math.random() * (maxLng - minLng);
+                randomPoint = new BMap.Point(randomLng, randomLat);
+            } while (!isInOverlay(randomPoint, overlay));
+    
+            randomPoints.push(randomPoint);
+        }
+    
+        return randomPoints;
     }
 
 
@@ -1010,37 +1049,12 @@
     }
 
 
-    function isInPolygon(point, path) {
-        let isInside = false;
-        const { lng, lat } = point;
-
-        for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
-            const { lng: lng1, lat: lat1 } = path[i];
-            const { lng: lng2, lat: lat2 } = path[j];
-
-            if ((lat1 > lat) !== (lat2 > lat) &&
-                (lng < (lng2 - lng1) * (lat - lat1) / (lat2 - lat1) + lng1)) {
-                isInside = !isInside;
-            }
-        }
-        return isInside;
-    }
-
         function isInOverlay(point, overlay) {
         if (!(point instanceof BMap.Point)) {
             throw new Error('point should be an instance of BMap.Point');
         }
         if (overlay instanceof BMap.Bounds) {
             return overlay.containsPoint(point);
-        } else if (overlay instanceof BMap.Circle) {
-            const bounds = overlay.getBounds();
-            if (bounds && bounds.containsPoint(point)) {
-                const center = overlay.getCenter();
-                const radius = overlay.getRadius();
-                const distance = map.getDistance(center, point);
-                return distance <= radius;
-            }
-            return false;
         } else if (overlay instanceof BMap.Polygon) {
             return BMapLib.GeoUtils.isPointInPolygon(point, overlay)
         } else {
