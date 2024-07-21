@@ -1,5 +1,5 @@
 (function () {
-    let map, drawingManager, panoramaLayer, popup
+    let map, drawingManager, panoramaLayer, markerClusterer,popup
     let isStarted = false
     let selections = {}
     let overlayStates = {};
@@ -276,6 +276,7 @@
         }
 
         document.getElementById("pause").onclick = () => {
+            updateMarkerCluster()
             isStarted = false
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
@@ -284,7 +285,7 @@
         document.getElementById("erase").onclick = () => {
             resultPanos.customCoordinates = []
             manualPick = []
-            document.getElementById("export-panel").children[0].innerText = `输出生成结果`
+            document.getElementById("export-panel").children[0].innerText = `输出结果`
         }
         document.getElementById("clear").onclick = () => {
             for (var i = 0; i < markers.length; i++) {
@@ -306,7 +307,7 @@
         }
         document.getElementById("manual-export").onclick = () => {
             resultPanos.customCoordinates.push(...manualPick)
-            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+            document.getElementById("export-panel").children[0].innerText = `输出结果 (${resultPanos.customCoordinates.length} 个地点)`
             displayPopup("手选点已添加至输出！")
         }
 
@@ -627,9 +628,9 @@
             isOpen: false,
             enableDrawingTool: true,
             drawingToolOptions: {
-                scale:0.8,
+                scale:0.9,
                 anchor: BMAP_ANCHOR_TOP_LEFT,
-                offset: new BMap.Size(40, 20),
+                offset: new BMap.Size(70, 10),
                 drawingModes: [
                     BMAP_DRAWING_MARKER,
                     BMAP_DRAWING_POLYLINE,
@@ -800,16 +801,21 @@
         return svgUrl;
     }
 
-    function convertCoord(point) {
-        var x_pi = 3.14159265358979324 * 3000.0 / 180.0
-        var x = point.lng,
-            y = point.lat;
-        var z = Math.sqrt(x * x + y * y) + 0.00002 * Math.sin(y * x_pi);
-        var theta = Math.atan2(y, x) + 0.000003 * Math.cos(x * x_pi);
-        point.lng = (z * Math.cos(theta) + 0.0065).toFixed(5);
-        point.lat = (z * Math.sin(theta) + 0.006).toFixed(5);
-        return point;
+function updateMarkerCluster() {
+    if (markers.length<200) return
+    if (markerClusterer) {
+        markerClusterer.clearMarkers();
+    }
+
+    markerClusterer = new BMapLib.MarkerClusterer(map, { markers: markers });
+
+    var options = {
+        gridSize: 60, 
+        maxZoom: 14 
     };
+
+    markerClusterer = new BMapLib.MarkerClusterer(map, markers, options);
+}
 
     async function initSearch() {
         if (Object.keys(selections).length === 0){
@@ -820,93 +826,76 @@
         for (const key in selections) {
             const wrapper = document.getElementById(key)
             if (wrapper) {
+                const findPanos = [];
                 const polygon_label = wrapper.querySelector('span:nth-child(1)')
                 const polygon_name = polygon_label.innerText
-                const bounds = selections[key]
+
                 const input = wrapper.querySelector('input');
                 const needNum = parseInt(input.value ? input.value : 10);
+                
                 const numberLabel = wrapper.querySelector('span:nth-child(2)')
                 var findNum = parseInt(numberLabel.innerText ? numberLabel.innerText : 0);
-                const aroundPoints = []
-                const grids=await dividePly(key)
+                
+                const motherOverlay=getOverlayByKey(key)
+                const grids=await recursiveDividePly(motherOverlay)
+
                 while (findNum < needNum && isStarted) {
-                    const searchPromises = [];
 
-                    for (const grid of grids) {
-                        const randomPoints = genPoints(grid); // 生成随机点数组
+                const randomPoints = genPoints(grids, needNum);
+                try {
+                    const promises = randomPoints.map(async (randomPoint) => {
+                        const bd09mcPoint = convertLL2MC(randomPoint.lat, randomPoint.lng);
+                        const resultPano = await searchPano(bd09mcPoint[0], bd09mcPoint[1], 12);
+            
+                        if (resultPano && resultPano.id) {
+                            const isChecked = await checkPano(resultPano.id);
+            
+                            if (isChecked) {
+                                const checkPoint = new BMap.Point(isChecked[0], isChecked[1]);
+                                const isIn = isInOverlay(checkPoint, motherOverlay);
+            
+                                let isAccepted = true;
+                                if (isIn) {
+                                    for (let coord of findPanos) {
+                                        const distance = map.getDistance(checkPoint, coord);
+                                        if (distance < 2000) {
+                                            isAccepted = false;
+                                            break;
+                                        }
+                                    }
 
-                        for (const randomPoint of randomPoints) {
-                            const bd09mcPoint = convertLL2MC(randomPoint.lat, randomPoint.lng);
-                            const searchPromise = searchPano(bd09mcPoint[0], bd09mcPoint[1], 16)
-                                .then(async (resultPano) => {
-                                    if (!resultPano || !resultPano.id) return null;
-                
-                                    const isChecked = await checkPano(resultPano.id);
-                                    if (!isChecked) return null;
-                
-                                    const checkPoint = new BMap.Point(isChecked[0], isChecked[1]);
-                                    const isIn = isInOverlay(checkPoint, getOverlayByKey(key));
-                                    if (!isIn) return null;
-                
-                                    return {
-                                        resultPano,
-                                        isChecked
-                                    };
-                                })
-                                .catch(err => {
-                                    console.error("Error in searchPano:", err);
-                                    return null;
-                                });
-                
-                            searchPromises.push(searchPromise);
-                        }
-                    }
-                
-                    const results = await Promise.all(searchPromises);
-                
-                    for (const result of results) {
-                        if (result) {
-                            const { resultPano, isChecked } = result;
-                
-                            extractTag(polygon_name, resultPano, resultPanos.customCoordinates);
-                            findNum += 1;
-                            numberLabel.innerText = findNum;
-                
-                            const marker = new BMap.Marker(new BMap.Point(isChecked[0], isChecked[1]), {
-                                icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
-                                    imageOffset: new BMap.Size(0, 0),
-                                    anchor: new BMap.Size(0, 12.5)
-                                })
-                            });
-                
-                            if (marker) {
-                                map.addOverlay(marker);
-                                markers.push(marker);
-                
-                                const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${isChecked[3]}&panotype=street&heading=${isChecked[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${isChecked[3]}`;
-                                marker.addEventListener("click", function () {
-                                    window.open(svLink, '_blank');
-                                });
-                
-                                if (findNum >= needNum) {
-                                    break;
+                                    if (isAccepted) {
+                                        findPanos.push(new BMap.Point(isChecked[0], isChecked[1]));
+                                        if (findNum<needNum&&isStarted) {
+                                            findNum++
+                                            genMarker(isChecked);
+                                            extractTag(polygon_name, resultPano, resultPanos.customCoordinates);
+                                        }
+                                        numberLabel.innerText = findNum;
+                                    }
                                 }
                             }
                         }
-                    }
+                    });
+            
+                    await Promise.all(promises);
+                } catch (err) {
+                    console.error("Error in findAndProcessPoints:", err);
                 }
+                    }
                 }
             }
         
         if (isStarted) {
             isStarted = false
-            document.getElementById("export-panel").children[0].innerText = `输出生成结果 (${resultPanos.customCoordinates.length} 个地点)`
+            updateMarkerCluster()
+            document.getElementById("export-panel").children[0].innerText = `输出结果 (${resultPanos.customCoordinates.length} 个地点)`
             document.getElementById("pause").style.display = 'none'
             document.getElementById("start").style.display = 'block'
             displayPopup("生成完毕！")
         }
     }
-    
+
     function getOverlayByKey(key){
         var overlay
          for (let i = 0; i < overlays.length; i++) {
@@ -920,32 +909,51 @@
         }
         return overlay
     } 
-    
-    async function dividePly(key) {
-        let overlay = getOverlayByKey(key);
-        let l;
 
+    async function recursiveDividePly(motherPly) {
+        async function recursiveCall(overlay, currentL) {
+            const { grids, l } = await dividePly(overlay, motherPly);
+    
+            if (l >= 9) {
+                return grids;
+            } else {
+                const promises = grids.map(async (grid) => {
+                    const nextLevelGrids = await recursiveCall(grid, l);
+                    return nextLevelGrids || []; 
+                });
+    
+                const results = await Promise.all(promises);
+    
+                let finalGrids = [];
+                results.forEach((nextLevelGrids) => {
+                    finalGrids.push(...nextLevelGrids);
+                });
+    
+                return finalGrids;
+            }
+        }
+    
+        return await recursiveCall(motherPly, undefined);
+    }
+    
+    async function dividePly(overlay,motherPly) {
         const bounds = overlay.getBounds();
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
-    
         const diagonalLength = map.getDistance(new BMap.Point(sw.lng, sw.lat), new BMap.Point(ne.lng, ne.lat));
-    
-        let gridSize, numCols, numRows;
-    
-        if (diagonalLength <= 7200) {
-            gridSize = 860*2
-            l = 14;
-        } else if (diagonalLength <= 40800) {
-            gridSize = 5100*2
-            l = 11;
-        } else if (diagonalLength <= 141600) {
-            gridSize = 17700*2
-            l = 9;
-        }  else {
-            gridSize = 88200*2
-            l = 7;
-        }
+        let numCols, numRows;
+        const thresholds = [
+            { max: 4064, gridSize: 1016, l: 14 },
+            { max: 7136, gridSize: 1784, l: 13 },
+            { max: 21304, gridSize: 5326, l: 12 },
+            { max: 67640, gridSize: 16910, l: 11 },
+            { max: 109904, gridSize: 27476, l: 10 },
+            { max: 159056, gridSize: 39764, l: 9 },
+        ];
+        
+        let defaultThreshold ={ max: 257360, gridSize: 64340, l: 8 }
+
+        let { gridSize, l } = thresholds.find(threshold => diagonalLength <= threshold.max) || defaultThreshold;
     
         numCols = Math.ceil(diagonalLength / gridSize);
         numRows = Math.ceil(diagonalLength / gridSize);
@@ -953,12 +961,12 @@
         const commonStep = Math.max((ne.lng - sw.lng) / numCols, (ne.lat - sw.lat) / numRows);
     
         const grids = [];
-    
+        const tasks = [];
         for (let i = 0; i < numRows; i++) {
             for (let j = 0; j < numCols; j++) {
                 const gridSW = new BMap.Point(sw.lng + j * commonStep, sw.lat + i * commonStep);
                 const gridNE = new BMap.Point(sw.lng + (j + 1) * commonStep, sw.lat + (i + 1) * commonStep);
-    
+
                 const gridPath = [
                     gridSW,
                     new BMap.Point(gridNE.lng, gridSW.lat),
@@ -976,76 +984,68 @@
     
                 let allInside = false;
                 for (let i = 0; i < vertices.length; i++) {
-                    if (isInOverlay(vertices[i], overlay)) {
+                    if (isInOverlay(vertices[i], motherPly)) {
                         allInside = true;
                         break;
                     }
                 }
                if(!allInside) continue
     
-                try {
-                    const pano = await searchPano(convertLL2MC(gridCenter.lat, gridCenter.lng)[0],convertLL2MC(gridCenter.lat, gridCenter.lng)[1], l);
-                    if (!pano || !pano.id) continue;
-                    const isChecked = await checkPano(pano.id);
-                    if (!isChecked) continue;
-                    const grid = new BMap.Polygon(gridPath,{
-                                strokeColor: getRandomColor(),
-                                strokeWeight: 2.5,
-                                fillOpacity: 0.1,
-                                fillColor: "#fff"
-                            })
-                    map.addOverlay(grid)
-                    grids.push(grid);
-                } catch (error) {
-                    console.error('Error processing grid:', error);
-                }
+                const task = (async () => {
+                    try {
+                        const pano = await searchPano(convertLL2MC(gridCenter.lat, gridCenter.lng)[0], convertLL2MC(gridCenter.lat, gridCenter.lng)[1], l);
+                        if (!pano || !pano.id) return null;
+                        const isChecked = await checkPano(pano.id);
+                        if (!isChecked) return null;
+                        return new BMap.Polygon(gridPath);
+                    } catch (error) {
+                        console.error('Error processing grid:', error);
+                        return null;
+                    }
+                })();
+
+        tasks.push(task);
             }
         }
-    
-        return grids;
+        const results = await Promise.all(tasks);
+        results.filter(grid => grid !== null).forEach(grid => {grids.push(grid)});
+
+        return {grids,l};
     }
 
-    function genPoints(overlay, numPoints = 50) {
-        const path = overlay.getPath();
-        if (path.length < 3) {
-            throw new Error("Polygon must have at least 3 points.");
-        }
-    
-        const latitudes = path.map(point => point.lat);
-        const longitudes = path.map(point => point.lng);
-    
-        const minLat = Math.min(...latitudes);
-        const maxLat = Math.max(...latitudes);
-        const minLng = Math.min(...longitudes);
-        const maxLng = Math.max(...longitudes);
-    
+    function genPoints(overlays, num) {
         const randomPoints = [];
+        var genNum = Math.min(num * 100, 1000)/overlays.length;
+        overlays.forEach(overlay => {
+            const path = overlay.getPath();
+            if (path.length < 3) {
+                throw new Error("Polygon must have at least 3 points.");
+            }
     
-        for (let i = 0; i < numPoints; i++) {
-            let randomPoint;
+            const latitudes = path.map(point => point.lat);
+            const longitudes = path.map(point => point.lng);
     
-            do {
-                const randomLat = Math.asin(
-                    Math.random() * (Math.sin(maxLat * Math.PI / 180) - Math.sin(minLat * Math.PI / 180)) + Math.sin(minLat * Math.PI / 180)
-                ) * 180 / Math.PI;
-                const randomLng = minLng + Math.random() * (maxLng - minLng);
-                randomPoint = new BMap.Point(randomLng, randomLat);
-            } while (!isInOverlay(randomPoint, overlay));
+            const minLat = Math.min(...latitudes);
+            const maxLat = Math.max(...latitudes);
+            const minLng = Math.min(...longitudes);
+            const maxLng = Math.max(...longitudes);
     
-            randomPoints.push(randomPoint);
-        }
+            for (let i = 0; i < genNum; i++) {
+                let randomPoint;
     
+                do {
+                    const randomLat = Math.asin(
+                        Math.random() * (Math.sin(maxLat * Math.PI / 180) - Math.sin(minLat * Math.PI / 180)) + Math.sin(minLat * Math.PI / 180)
+                    ) * 180 / Math.PI;
+                    const randomLng = minLng + Math.random() * (maxLng - minLng);
+                    randomPoint = new BMap.Point(randomLng, randomLat);
+                } while (!isInOverlay(randomPoint, overlay));
+    
+                randomPoints.push(randomPoint);
+            }
+        });
+        randomPoints.sort(() => Math.random() - 0.5);
         return randomPoints;
-    }
-
-
-    function getDistance(p, p_) {
-    
-        var distance = map.getDistance(p, p_);
-    
-        var distanceInKm = distance / 1000;
-    
-        return distanceInKm
     }
 
 
@@ -1061,7 +1061,25 @@
             throw new Error('Unsupported overlay type');
         }
     }
-
+    
+    function genMarker(pano) {
+    
+        const marker = new BMap.Marker(new BMap.Point(pano[0], pano[1]), {
+            icon: new BMap.Icon(pinUrl, new BMap.Size(25, 25), {
+                imageOffset: new BMap.Size(0, 0),
+                anchor: new BMap.Size(0, 12.5)
+            })
+        });
+        map.addOverlay(marker);
+        markers.push(marker);
+    
+        const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${pano[3]}&panotype=street&heading=${pano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${pano[3]}`;
+        marker.addEventListener("click", function () {
+            window.open(svLink, '_blank');
+        });
+                    
+    }
+    
     function extractTag(name, pano, pool) {
         var rN = pano.RoadName
         if (rN === "") rN = "未知道路"
