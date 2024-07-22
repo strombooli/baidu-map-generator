@@ -725,10 +725,11 @@
     function handleShapeOverlay(overlay, bounds, key) {
         const state = overlayStates[key];
         drawingManager.close();
-
+        
         overlay.addEventListener("click", function () {
             toggleShapeSelection(overlay, state, bounds, key);
         });
+        displayPlyLabel(overlay,state)
     }
 
     function handlePolylineOverlay(overlay, bounds, key) {
@@ -747,12 +748,28 @@
         overlay.remove();
         overlays.pop();
         overlays.push(polygon);
-
         polygon.addEventListener("click", function () {
             toggleShapeSelection(polygon, state, bounds, key);
         });
+        displayPlyLabel(polygon,state)
     }
+    
+    function displayPlyLabel(polygon, state) {
+        const mouseonLable = document.getElementById('panel-container').querySelector(':first-child');
+        polygon.addEventListener("mouseover", function(e) {
+            if (mouseonLable) mouseonLable.textContent = state.label ? state.label : "绘制区域";
+            polygon.setFillColor(getRandomColor());
+            polygon.setFillOpacity(0.6);
 
+        });
+    
+        polygon.addEventListener("mouseout", function(e) {
+            if (mouseonLable) mouseonLable.textContent = "请导入或绘制一个你要生成街景的区域";
+                polygon.setFillColor('#fff');
+                polygon.setFillOpacity(0.1);
+        });
+    }
+    
     function toggleShapeSelection(overlay, state, bounds, key) {
         if (!state.isChecked) {
             if (!selections[key]) {
@@ -760,7 +777,7 @@
             }
             const color = getRandomColor();
             overlay.setFillColor(color);
-            overlay.setFillOpacity(0.5);
+            overlay.setFillOpacity(0.6);
             state.currentWrapper = addInputElement(
                 color,
                 key,
@@ -802,7 +819,7 @@
     }
 
 function updateMarkerCluster() {
-    if (markers.length<200) return
+    if (markers.length<500) return
     if (markerClusterer) {
         markerClusterer.clearMarkers();
     }
@@ -1074,9 +1091,7 @@ function updateMarkerCluster() {
         markers.push(marker);
     
         const svLink = `https://map.baidu.com/@13057562,4799985#panoid=${pano[3]}&panotype=street&heading=${pano[2]}&pitch=0&l=21&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=${pano[3]}`;
-        marker.addEventListener("click", function () {
-            window.open(svLink, '_blank');
-        });
+        marker.onclick = function() {window.open(svLink, '_blank');};
                     
     }
     
