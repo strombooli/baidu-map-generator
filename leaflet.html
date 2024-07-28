@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title></title>
+  <meta charset="utf-8">
+  <style type="text/css">
+    html,
+    body {
+      background-color: #090728;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    #map {
+      position: fixed;
+      border: none;
+      width: 100%;
+      z-index: 1;
+      height: 100%;
+    }
+
+    #panel-container {
+      position: fixed;
+      left: 20px;
+      top: 100px;
+      z-index: 999;
+    }
+
+    #panel-container h3 {
+      background-color: #000000;
+      text-align: center;
+      margin: 0;
+    }
+
+    #selection-container {
+      margin-top: 20px;
+      color: #fff;
+      background-color: #000000;
+      opacity: 0.7;
+      padding: 10px;
+      max-width: 340px;
+      max-height: calc(100vh - 450px);
+      overflow: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 5px;
+      font-size: 18px;
+    }
+
+    .panel {
+      position: fixed;
+      color: #fff;
+      background-color: #000000;
+      font-size: 18px;
+      opacity: 0.7;
+      border-radius: 5px;
+      width: 320px;
+      height: auto;
+      padding: 10px;
+      text-align: center;
+      z-index: 999;
+    }
+
+    .wrapper {
+      position: relative;
+      left: 50%;
+      font-size: 16px;
+      transform: translate(-50%, -50%);
+      padding: 5px;
+      background-color: #000000;
+      border: none;
+      margin-top: 10px;
+      margin-bottom: 10px
+    }
+
+    #button-container {
+      position: fixed;
+      padding: 10px;
+      background-color: none;
+    }
+
+    .control-button {
+      padding: 10px 20px;
+      margin: 10px;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 20px;
+      background-color: #FF9427;
+      width: 320px;
+      display: block;
+      margin-left: 12px;
+      margin-bottom: 10px;
+      z-index: 999;
+    }
+
+    .popup {
+      position: absolute;
+      bottom: 10%;
+      left: 50%;
+      color: #fff;
+      font-size: 18px;
+      font-weight: thick;
+      transform: translate(-50%, -50%);
+      padding: 20px;
+      background-color: #000000;
+      border: none;
+      opacity: 0.8;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      display: none;
+      z-index: 9999;
+    }
+
+    .settings {
+      padding: 5px;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.7);
+      box-shadow: 0 0 2px rgba(0, 0, 0, 0.4);
+      overflow: auto;
+      max-width: 320px;
+      max-height: calc(100vh - 270px);
+      color: #fff;
+      z-index: 999;
+    }
+
+    .leaflet-control-opacity {
+      background: white;
+      padding: 5px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+
+    .leaflet-control-opacity input {
+      width: 100px;
+      cursor: pointer;
+    }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/gcoord@0.3.2/dist/gcoord.js"></script>
+</head>
+
+<body>
+  <div id="map" />
+  <div id="panel-container">
+    <div class="panel" style="top: 60px; left: 20px;">请绘制或导入一个你要生成街景的区域</div>
+    <div id="selection-container">
+      <h3>选中的区域</h3>
+      <button id="select-all"
+        style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:10px; margin-left: 10px;  margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">全选</button>
+      <button id="deselect-all"
+        style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:10px; margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">反选</button>
+      <button id="import-geojson"
+        style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:10px; margin-right: 15px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">导入</button>
+      <button id="search-geojson"
+        style="color: rgb(255, 255, 255); width: 60px; font-size: 16px; margin-top:10px; margin-right: 10px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">搜索</button>
+      <hr
+        style="border: none; height: 1px; background-color: rgb(255, 148, 39); width: 320px; margin: 10px auto; margin-bottom:20px">
+    </div>
+    <button id="erase" class="control-button" style="background-color: #FF9427;">清除生成街景</button>
+    <button id="clear" class="control-button" style="background-color: #FF9427; ">移除所有标记</button>
+    <button id="remove" class="control-button" style=" background-color: #FF9427;">移除所有区域</button>
+    <button id="manual-export" class="control-button" style="background-color: #FF9427;">将手选点输出</button>
+  </div>
+  <div id="settingContainer" class="settings" style="position:absolute; right:15px; top:50px">
+    <h4 class="center" style="text-align:center; font-size:18px ;margin:10px">覆盖设置</h4>
+
+    <div id="coverageSettings">
+      <label><input type="checkbox" id="rejectType1" style="margin:5px"> 拒绝覆盖种类1</label><br>
+      <div id="rejectType1Settings" style="display:none">
+        <label><input type="radio" name="rejectType1Reference" value="0000" style="margin-left:10px"> 0000</label><br>
+        <label><input type="radio" name="rejectType1Reference" value="0001" style="margin-left:10px"> 0001</label><br>
+        <label><input type="radio" name="rejectType1Reference" value="0012" style="margin-left:10px"> 0012</label><br>
+      </div>
+      <label><input type="checkbox" id="rejectType2" style="margin:5px"> 拒绝覆盖种类2</label><br>
+      <div style="margin:5px; margin-left:10px; display:none"> panoId后两位
+        <input type="text" id="rejectType2Reference"
+          style="max-width:60px; height:20px; overflow:auto; margin-left:10px">
+      </div>
+      <label><input type="checkbox" id="findType1" style="margin:5px"> 仅接受覆盖种类1</label><br>
+      <div id="findType1Settings" style="display:none">
+        <label><input type="radio" name="findType1Reference" value="0000" style="margin-left:10px"> 0000</label><br>
+        <label><input type="radio" name="findType1Reference" value="0001" style="margin-left:10px"> 0001</label><br>
+        <label><input type="radio" name="findType1Reference" value="0012" style="margin-left:10px"> 0012</label><br>
+      </div>
+      <label><input type="checkbox" id="findType2" style="margin:5px"> 仅接受覆盖种类2</label><br>
+      <div style="margin:5px; margin-left:10px; display:none"> panoId后两位
+        <input type="text" id="findType2Reference" style="max-width:60px; height:20px; overflow:auto; margin-left:10px">
+      </div>
+    </div>
+
+    <hr />
+
+    <h4 style="text-align:center; font-size:18px ;margin:10px">地点设置</h4>
+
+    <div id="locationSettings">
+      <label><input type="checkbox" id="rejectTunnel" style="margin:5px"> 拒绝隧道地点</label><br>
+      <label><input type="checkbox" id="rejectTerminus" style="margin:5px"> 拒绝道路尽头</label><br>
+      <label><input type="checkbox" id="rejectEmptyRName" style="margin:5px"> 拒绝未知道路</label><br>
+      <label><input type="checkbox" id="getInersection" style="margin:5px"> 仅接受路口点</label><br>
+    </div>
+
+    <hr />
+
+    <h4 style="text-align:center; font-size:18px ;margin:10px">街景设置</h4>
+
+    <div id="mapSettings">
+      <label><input type="checkbox" id="adjustHeading"> 调整水平视角</label><br>
+      <div id="headingSettings" style="display:none">
+        <label><input type="radio" name="headingReference" value="link"> 沿路方向</label><br>
+        <label><input type="radio" name="headingReference" value="forward"> 车行方向</label><br>
+        <label><input type="radio" name="headingReference" value="backward"> 车行反向</label><br>
+        水平视角偏移 <input type="range" id="headingDeviation" min="0" max="360" style="margin:5px">(+/- <span
+          id="headingDeviationValue">0</span>°)<br>
+        <small style="margin:10px" ;>默认0° 与道路方向保持一致</small>
+      </div>
+      <label><input type="checkbox" id="adjustPitch" style="margin-top:10px;"> 调整俯仰视角</label><br>
+      <div id="pitchSettings" style="display:none">
+        俯仰视角偏移 <input type="range" id="pitchDeviation" min="-90" max="90" style="margin:5px> (<span
+                id=" pitchDeviationValue">0</span>°)<br>
+        <small style="margin:10px">默认0°平视， -90° 俯视地面 / +90°仰视天空</small>
+      </div>
+    </div>
+
+    <hr />
+
+    <h4 style="text-align:center; font-size:18px ;margin:10px">标记设置</h4>
+    <div id="markerSettings">
+      <label><input type="checkbox" id="cluster"> 聚合标记</label><br>
+      <label><input type="checkbox" id="gen1Marker"> 0000 覆盖（红色）</label><br>
+      <label><input type="checkbox" id="gen2Marker"> 0001 覆盖（橙色）</label><br>
+      <label><input type="checkbox" id="gen3Marker"> 0012 覆盖（绿色）</label><br>
+    </div>
+
+    <hr />
+
+    <h4 style="text-align:center; font-size:18px ;margin:10px">基础设置</h4>
+
+    <div style="margin:5px;">
+      间隔距离 <input type="number" id="radius" style="max-width:80px; height:20px; overflow:auto; margin-left:20px;"> 米
+    </div>
+    <div style="margin-left:5px; margin-bottom:10px">
+      生成器数量: <span id="numOfGenerators">1</span>
+      <input type="range" id="numOfGeneratorsRange" min="1" max="10">
+    </div>
+    <div id="filterByMonthSettings" style="margin:5px">
+      <label><input type="checkbox" id="filterByMonth" style="margin-bottom:10px"> 按拍摄时间过滤</label><br>
+      <div id="monthFilters">
+        <label style="margin:10px; font-size:14px">拍摄月份</label>
+        <select id="fromMonth">
+          <option value="01">January</option>
+          <option value="02">February</option>
+          <option value="03">March</option>
+          <option value="04">April</option>
+          <option value="05">May</option>
+          <option value="06">June</option>
+          <option value="07">July</option>
+          <option value="08">August</option>
+          <option value="09">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+        <label style="font-size:14px"> 至 </label>
+        <select id="toMonth">
+          <option value="01">January</option>
+          <option value="02">February</option>
+          <option value="03">March</option>
+          <option value="04">April</option>
+          <option value="05">May</option>
+          <option value="06">June</option>
+          <option value="07">July</option>
+          <option value="08">August</option>
+          <option value="09">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select><br>
+        <label style="margin:10px;margin-top:15px; font-size:14px">拍摄年份</label>
+        <input type="number" id="fromYear" style="max-width:80px; height:22px; overflow:auto;margin-top:15px">
+        <label style="font-size:14px">至</label>
+        <input type="number" id="toYear" style="max-width:80px; height:22px; overflow:auto; margin-top:15px">
+      </div>
+    </div>
+  </div>
+  <button id="start" class="control-button"
+    style="position:fixed; right:5px;bottom: 120px; background-color: #16982b;">开始生成</button>
+  <button id="pause" class="control-button"
+    style="position:fixed; right:5px;bottom: 120px; background-color: #E66A6A; display:none">暂停</button>
+  <div id="export-panel" class="panel" style="right: 30px; bottom: 20px; width: 260px; height:80px;">
+    <h3 style="font-size: 22px; margin-top:0px; margin-bottom:10px; margin-left:2px; margin-right:2px">输出结果</h3>
+    <button id="export-clipboard"
+      style="color: rgb(255, 255, 255); width: 100px; font-size: 18px;margin-top:5px;padding:5px; border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px;">剪贴板</button>
+    <button id="export-json"
+      style="color: rgb(255, 255, 255); width: auto; font-size: 18px; margin-top:5px; padding:5px;margin-left:30px;border: 1px solid rgb(255, 148, 39); background-color: transparent; cursor: pointer; border-radius: 5px">JSON文件</button>
+  </div>
+  <input type="file" id="geojsonFile" accept=".geojson" style="display: none; position:absolute; left:50%">
+
+</body>
+<script type="text/javascript" src="./baseLayers.js"></script>
+<script type="text/javascript" src="./leaflet.js"></script>
+  
+</html>
