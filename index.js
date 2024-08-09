@@ -758,15 +758,9 @@
         const mouseonLable = document.getElementById('panel-container').querySelector(':first-child');
         polygon.addEventListener("mouseover", function(e) {
             if (mouseonLable) mouseonLable.textContent = state.label ? state.label : "绘制区域";
-            polygon.setFillColor(getRandomColor());
-            polygon.setFillOpacity(0.6);
-
         });
-    
         polygon.addEventListener("mouseout", function(e) {
             if (mouseonLable) mouseonLable.textContent = "请导入或绘制一个你要生成街景的区域";
-                polygon.setFillColor('#fff');
-                polygon.setFillOpacity(0.1);
         });
     }
     
