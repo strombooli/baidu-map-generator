@@ -17,10 +17,10 @@ const osmLayer = L.tileLayer("https://{s}.tile.osm.org/{z}/{x}/{y}.png");
 const gsvLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m8!1e2!2ssvv!4m2!1scc!2s*211m3*211e2*212b1*213e2*211m3*211e3*212b1*213e2*212b1*214b1!4m2!1ssvl!2s*211b0*212b1!3m8!2sen!3sus!5e1105!12m4!1e68!2m2!1sset!2sRoadmap!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
 const gsvLayer2 = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m8!1e2!2ssvv!4m2!1scc!2s*211m3*211e2*212b1*213e2*212b1*214b1!4m2!1ssvl!2s*211b0*212b1!3m8!2sen!3sus!5e1105!12m4!1e68!2m2!1sset!2sRoadmap!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
 const gsvLayer3 = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m8!1e2!2ssvv!4m2!1scc!2s*211m3*211e3*212b1*213e2*212b1*214b1!4m2!1ssvl!2s*211b0*212b1!3m8!2sen!3sus!5e1105!12m4!1e68!2m2!1sset!2sRoadmap!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
-const googleLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m2!1e0!2sm!3m5!2sen!3sus!5e1105!12m1!1e3!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
+const googleLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m5!1m4!1i{z}!2i{x}!3i{y}!4i256!2m1!2sm!3m17!2sen!3sUS!5e18!12m4!1e68!2m2!1sset!2sRoadmap!12m3!1e37!2m1!1ssmartmaps!12m4!1e26!2m2!1sstyles!2ss.e:l|p.v:ff,s.t:0.7|s.e:g.s|p.v:on!5m1!5f1.5");
 const googleLabelsLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m2!1e0!2sm!3m5!2sen!3sus!5e1105!12m1!1e15!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
 const googleSatelliteLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m2!1e1!2sm!3m3!2sen!3sus!5e1105!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
-const terrainLayer = L.tileLayer("https://www.google.com/maps/vt?pb=!1m7!8m6!1m3!1i{z}!2i{x}!3i{y}!2i9!3x1!2m2!1e0!2sm!2m1!1e4!3m7!2sen!3sus!5e1105!12m1!1e67!12m1!1e3!4e0!5m4!1e0!8m2!1e1!1e1!6m6!1e12!2i2!11e0!39b0!44e0!50e0");
+const terrainLayer = L.tileLayer("https://maps.googleapis.com/maps/vt?pb=!1m5!1m4!1i{z}!2i{x}!3i{y}!4i256!2m1!2sm!2m2!1e5!2sshading!2m2!1e6!2scontours!3m17!2sen!3sUS!5e18!12m4!1e68!2m2!1sset!2sTerrain!12m3!1e37!2m1!1ssmartmaps!12m4!1e26!2m2!1sstyles!2ss.e:l|p.v:off,s.t:0.7|s.e:g.s|p.v:on!5m1!5f1.5");
 const hwLayer = L.tileLayer("https://maprastertile-drcn.dbankcdn.cn/display-service/v1/online-render/getTile/23.12.09.11/{z}/{x}/{y}/?language=zh&p=46&scale=2&mapType=ROADMAP&presetStyleId=standard&pattern=JPG&key=DAEDANitav6P7Q0lWzCzKkLErbrJG4kS1u%2FCpEe5ZyxW5u0nSkb40bJ%2BYAugRN03fhf0BszLS1rCrzAogRHDZkxaMrloaHPQGO6LNg==")
 
 
@@ -38,11 +38,16 @@ var drawControl = new L.Control.Draw({
         polygon: {
             allowIntersection: false,
             showArea: true
-        }
+        },
+        polyline: false,
+        circle: false,
+        marker: false,
+        circlemarker: false
     },
-    // position: 'bottomright'
+    position: 'bottomleft',
+ 
 });
-map.addControl(drawControl, { position: 'topright' });
+
 
 map.on(L.Draw.Event.CREATED, function (event) {
     var layer = event.layer;
@@ -67,18 +72,6 @@ const markerLayer = L.markerClusterGroup({
 })
 markerLayer.addTo(map)
 
-// var otherElements = document.querySelectorAll('*');
-
-// 遍历所有元素
-// otherElements.forEach(function (element) {
-//     // 检查元素是否不是id为"map"的元素
-//     if (element.id !== 'map') {
-//         // 禁用点击事件冒泡
-//         // L.DomEvent.disableClickPropagation(element);
-//         // 禁用滚轮事件冒泡
-//         // L.DomEvent.disableScrollPropagation(element);
-//     }
-// });
 L.DomEvent.disableClickPropagation(document.getElementById("settingContainer"))
 L.DomEvent.disableScrollPropagation(document.getElementById("settingContainer"))
 L.DomEvent.disableClickPropagation(document.getElementById("panel-container"))
@@ -91,6 +84,7 @@ const baseLayers = { "百度地图": baseLabelsLayer, "百度卫星图": satelli
 
 var layerControl = L.control.layers(baseLayers, bdRoadmapLayers, { autoZIndex: false, position: "bottomleft" }).addTo(map)
 var opacityControl = L.control.opacityControl(svLayer, { position: 'topright' }).addTo(map);
+map.addControl(drawControl);
 
 map.on('baselayerchange', function (event) {
     var newBaseLayer = event.layer;
@@ -129,7 +123,7 @@ map.on('baselayerchange', function (event) {
             map.removeControl(layerControl);
 
             layerControl = L.control.layers(baseLayers, gsvLayers, { autoZIndex: false, position: "bottomleft" });
-
+            gsvLayer.addTo(map).bringToFront();
             if (newBaseLayer._url.includes('maprastertile') || newBaseLayer._url.includes('osm')) {
                 map.removeLayer(googleLabelsLayer);
                 layerControl = L.control.layers(
@@ -139,13 +133,12 @@ map.on('baselayerchange', function (event) {
                 );
 
 
-
             } else {
                 googleLabelsLayer.addTo(map).bringToFront();
             }
 
             layerControl.addTo(map);
-            gsvLayer.addTo(map).bringToFront();
+
         }
     }
 
@@ -187,10 +180,22 @@ let state = {
 let selected = []
 function onEachFeature(feature, layer) {
     layer.on({
-        mouseover: highlightFeature,
-        mouseout: resetHighlight,
-        click: selectCountry,
+        mouseover: function(e) {
+            highlightFeature(e);
+            markFeature(e.target.feature.properties.name);
+        },
+        mouseout: function(e) {
+            resetHighlight(e)
+            markFeature()
+        },
+        click: selectFeature,
     });
+}
+
+function markFeature(text){
+    const panel=document.getElementById('mouse-on-layer')
+    if(text) panel.textContent=text
+    else panel.textContent='请绘制或导入一个你要生成街景的区域'
 }
 
 function highlightFeature(e) {
@@ -214,7 +219,7 @@ function initLayer(layer) {
     if (!layer.checkedPanos) layer.checkedPanos = new Set();
     return layer;
 }
-function selectCountry(e) {
+function selectFeature(e) {
     if (state.started) return;
     const country = e.target;
     initLayer(country);
@@ -287,12 +292,18 @@ map.on("draw:created", (e) => {
     polygon.found = [];
     polygon.nbNeeded = 100;
     polygon.checkedPanos = new Set();
-    polygon.feature.properties.name = `Custom polygon ${state.polygonID}`;
+    polygon.feature.properties.name = `绘制区域 ${state.polygonID}`;
     polygon.setStyle(customPolygonStyle());
     polygon.setStyle(highlighted());
-    polygon.on("mouseover", (e) => highlightFeature(e));
-    polygon.on("mouseout", (e) => resetHighlight(e));
-    polygon.on("click", (e) => selectCountry(e));
+    polygon.on("mouseover", (e) => {
+        highlightFeature(e)
+        markFeature(`绘制区域 ${state.polygonID}`)
+    });
+    polygon.on("mouseout", (e) => {
+        resetHighlight(e)
+        markFeature()
+    });
+    polygon.on("click", (e) => selectFeature(e));
     customPolygonsLayer.addLayer(polygon);
     selected.push(polygon);
 });
@@ -311,7 +322,10 @@ map.on("draw:deleted", (e) => {
         const index = selected.findIndex((x) => x === layer);
         if (index != -1) selected.splice(index, 1);
     });
+    updateSelected()
 });
+
+//map.on("click",async (e) =>{getPano(e.latlng)})
 
 function randomPointInPoly(polygon) {
     const bounds = polygon.getBounds();
@@ -344,16 +358,15 @@ const generate = async (province) => {
 
 
 async function getPano(point, province) {
-    let { x, y } = convertLL2MC({ lat: point.lat, lng: point.lng });
-    console.log(x, y)
-    pano = await searchPanoByXYL(x, y, 12)
+
+    let [x,y]=gcoord.transform([point.lng, point.lat],gcoord.WGS84, gcoord.BD09MC)
+    pano = await searchPanoByXYL(x, y, 17)
     // console.log(province.found)
     if (pano) {
-        const point = convertMC2LL({ y: pano.y / 100, x: pano.x / 100 });
-        const lat = point.lat, lng = point.lng;
+        const [lng,lat] = gcoord.transform([pano.x/100,pano.y/100],gcoord.BD09MC, gcoord.WGS84)
         const pointFound = { lat: lat, lng: lng, panoId: pano.id };
         addPoint(pointFound);
-        province.found.push(pointFound);
+        //province.found.push(pointFound);
     }
 }
 
