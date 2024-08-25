@@ -23,8 +23,8 @@
 
     #panel-container {
       position: fixed;
-      left: 20px;
-      top: 100px;
+      left: 36px;
+      top: 80px;
       z-index: 999;
     }
 
@@ -150,7 +150,7 @@
 <body>
   <div id="map">
     <div id="panel-container">
-      <div class="panel" style="top: 60px; left: 20px;">请绘制或导入一个你要生成街景的区域</div>
+      <div id="mouse-on-layer" class="panel" style="top: 40px; left: 36px;">请绘制或导入一个你要生成街景的区域</div>
       <div id="selection-container">
         <h3>选中的区域</h3>
         <button id="select-all"
@@ -306,7 +306,6 @@
     <input type="file" id="geojsonFile" accept=".geojson" style="display: none; position:absolute; left:50%">
 
 </body>
-<script type="text/javascript" src="./coordinates.js"></script>
 <script type="text/javascript" src="./baseLayers.js"></script>
 <script type="text/javascript" src="./leaflet.js"></script>
 
